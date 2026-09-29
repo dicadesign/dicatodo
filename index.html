@@ -2216,14 +2216,15 @@ async function init() {
     const me = await api('GET', 'me');
     MODE = 'server';
     F('calLink').href = '../';
+    render();   // ab jetzt aus dem Server-Speicher (Termine, Aufgaben)
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
     if (me.setupNeeded) return showAuth(true);
     startSync(me.user);
   } catch (e) {
-    if (e.status === 401 && !e.notApi) { MODE = 'server'; F('calLink').href = '../'; return showAuth(false); }
+    if (e.status === 401 && !e.notApi) { MODE = 'server'; F('calLink').href = '../'; render(); return showAuth(false); }
     const known = store.load('syncUser', '');
     if (e.network && known) {   // offline: mit den Daten auf dem Gerät weiterarbeiten
-      MODE = 'server'; F('calLink').href = '../';
+      MODE = 'server'; F('calLink').href = '../'; render();
       sync.on = true; sync.user = known; F('accountBox').classList.remove('hidden'); setSyncStatus('off');
       return;
     }
