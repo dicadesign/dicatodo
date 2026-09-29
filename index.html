@@ -459,6 +459,7 @@
             <option value="biweekly">Alle 2 Wochen</option>
             <option value="monthly">Monatlich</option>
             <option value="yearly">Jährlich</option>
+            <option value="monthend">Monatlich – Tage vor Monatsende</option>
             <option value="keep" hidden>Eigene Regel (aus dem Kalender)</option>
           </select>
         </label>
@@ -471,6 +472,9 @@
         </label>
       </div>
       <div class="pills" id="tWeekdays"></div>
+      <label class="f" id="tFromEndWrap">Tage vor Monatsende (0 = letzter Tag des Monats)
+        <input type="number" id="tFromEnd" min="0" max="27" value="5" inputmode="numeric">
+      </label>
       <div class="grid2" id="tRepEndVal">
         <input type="date" id="tUntil" class="field">
         <input type="number" id="tCount" class="field" min="1" max="999" placeholder="Anzahl">
@@ -480,7 +484,8 @@
     <details class="sect" id="boxAlarm">
       <summary>Erinnerung <span class="sum" id="sumAlarm"></span></summary>
       <div class="pills" id="tAlarms"></div>
-      <div class="hint">Push-Benachrichtigung über dicaKalendar.</div>
+      <label class="check"><input type="checkbox" id="tNag"> Täglich erinnern, bis erledigt (längstens bis Monatsende)</label>
+      <div class="hint">Push-Benachrichtigung über dicaKalendar. Nach dem Fälligkeitstag kommt die Meldung jeden Tag erneut, bis du die Aufgabe abhakst. Am Monatsende hört das Erinnern auf, die Aufgabe bleibt offen.</div>
     </details>
 
     <details class="sect" id="boxMoney">
@@ -648,7 +653,7 @@ function newTask(fields) {
   const t = {
     id: uid(), parentId: null, title: '', notes: '', order: 0, done: false, doneAt: 0, doneDates: [],
     date: '', time: '', endTime: '', endDate: '', repeat: { type: 'none' }, alarms: [], cal: true,
-    amount: null, expcat: '', deps: [], prio: false, calExceptions: [], created: Date.now(), updated: Date.now(),
+    amount: null, expcat: '', deps: [], prio: false, nag: false, calExceptions: [], created: Date.now(), updated: Date.now(),
     ...fields,
   };
   const sib = kids(t.parentId);
@@ -671,7 +676,20 @@ function occOn(t, D) {
   const ev = taskEv(t);
   if (!ev || !D) return null;
   const d0 = parseLocal(D);
-  try { const o = occurrences(ev, d0, addDays(d0, 1))[0]; return o ? ymd(o.start) : null; } catch { return null; }
+  try {
+    const o = occurrences(ev, d0, addDays(d0, 1))[0];
+    if (o) return ymd(o.start);
+    // „Täglich erinnern, bis erledigt“: der offene Termin bleibt bis Monatsende sichtbar (heute auch danach)
+    if (t.nag) {
+      const prev = occurrences(ev, addDays(d0, -62), d0).filter(x => x.start < d0).pop();
+      if (prev) {
+        const key = ymd(prev.start), monthEnd = new Date(prev.start.getFullYear(), prev.start.getMonth() + 1, 0);
+        const open = isRec(t) ? !(t.doneDates || []).includes(key) : !t.done;
+        if (open && (d0 <= monthEnd || D === todayStr())) return key;
+      }
+    }
+    return null;
+  } catch { return null; }
 }
 function doneOn(t, D) {
   if (!isRec(t)) return !!t.done;
@@ -964,6 +982,7 @@ function nodeHtml(n, D) {
   const chips = [];
   if (t.prio) chips.push('<span class="chip">★</span>');
   if (isOverdue(t)) chips.push(`<span class="chip late">überfällig · ${esc(dShort(t.date))}</span>`);
+  else if (t.nag && D && occOn(t, D) && occOn(t, D) < D && !done) chips.push(`<span class="chip late">fällig seit ${esc(dShort(occOn(t, D)))}</span>`);
   else if (t.date && D !== t.date && !occOn(t, D)) chips.push(`<span class="chip">📅 ${esc(dShort(nextDue(t) || t.date))}</span>`);
   if (t.time) chips.push(`<span class="chip">🕑 ${esc(timeText(t))}</span>`);
   if (t.endDate && t.endDate > t.date) chips.push(`<span class="chip">bis ${esc(dShort(t.endDate))}</span>`);
@@ -1798,8 +1817,11 @@ function openTask(id, defaults = {}) {
   else if (rv === 'custom') {
     if (r.freq === 'weekly' && (+r.interval || 1) === 1) { rv = 'weekdays'; wds = (r.weekdays || []).map(Number); }
     else if (r.freq === 'daily' && (+r.interval || 1) === 1) rv = 'daily';
+    else if (r.freq === 'monthly' && r.monthMode === 'fromend' && (+r.interval || 1) === 1) rv = 'monthend';
     else rv = 'keep';
   }
+  F('tFromEnd').value = rv === 'monthend' ? (+r.fromEnd || 0) : 5;
+  F('tNag').checked = !!v.nag;
   F('tRepeat').querySelector('[value=keep]').hidden = rv !== 'keep';
   F('tRepeat').value = rv;
   F('tWeekdays').innerHTML = [1, 2, 3, 4, 5, 6, 0].map(d => `<label class="pill"><input type="checkbox" value="${d}"${wds.includes(d) ? ' checked' : ''}>${WDS[d]}</label>`).join('');
@@ -1839,6 +1861,7 @@ function syncTaskForm(animate = true) {
   const hasDate = !!F('tDate').value;
   const rep = F('tRepeat').value;
   F('tWeekdays').classList.toggle('hidden', rep !== 'weekdays');
+  F('tFromEndWrap').classList.toggle('hidden', rep !== 'monthend');
   F('tRepEndWrap').classList.toggle('hidden', rep === 'none');
   F('tRepEndVal').classList.toggle('hidden', rep === 'none' || F('tRepEnd').value === 'never');
   F('tUntil').classList.toggle('hidden', F('tRepEnd').value !== 'until');
@@ -1859,14 +1882,14 @@ function updateSummaries() {
   F('sumWhen').textContent = dt ? dShort(dt) + (tm ? ', ' + tm + (te ? '–' + te : '') : '') : '';
   { const sel = F('tParent'), o = sel.options[sel.selectedIndex]; F('sumParent').textContent = sel.value && o ? o.textContent.replace(/^[\s↳]+/, '') : 'Hauptaufgabe'; }
   F('sumMulti').textContent = F('tEndDate').value ? 'bis ' + dShort(F('tEndDate').value) : '';
-  F('sumRepeat').textContent = rep.value === 'none' ? '' : rep.options[rep.selectedIndex].text;
-  F('sumAlarm').textContent = al ? (al === 1 ? '1 Erinnerung' : al + ' Erinnerungen') : '';
+  F('sumRepeat').textContent = rep.value === 'none' ? '' : rep.value === 'monthend' ? (+F('tFromEnd').value ? F('tFromEnd').value + ' Tage vor Monatsende' : 'am Monatsende') : rep.options[rep.selectedIndex].text;
+  F('sumAlarm').textContent = (al ? (al === 1 ? '1 Erinnerung' : al + ' Erinnerungen') : '') + (F('tNag').checked ? (al ? ' · ' : '') + 'täglich bis erledigt' : '');
   F('sumMoney').textContent = amt ? amt + ' €' + (cat ? ' · ' + cat.name : '') : '';
   const d = F('tDeps').querySelectorAll(':checked').length;
   F('sumDeps').textContent = d ? 'wartet auf ' + d : '';
 }
-['tParent', 'tDate', 'tTime', 'tEndTime', 'tEndDate', 'tAlarms', 'tDeps', 'tCats', 'tWeekdays', 'tRepEnd', 'tUntil'].forEach(id => F(id).addEventListener('change', updateSummaries));
-['tDate', 'tRepeat', 'tRepEnd', 'tAmount'].forEach(id => F(id).addEventListener('input', () => syncTaskForm()));
+['tFromEnd', 'tNag', 'tParent', 'tDate', 'tTime', 'tEndTime', 'tEndDate', 'tAlarms', 'tDeps', 'tCats', 'tWeekdays', 'tRepEnd', 'tUntil'].forEach(id => F(id).addEventListener('change', updateSummaries));
+['tDate', 'tRepeat', 'tRepEnd', 'tAmount', 'tFromEnd'].forEach(id => F(id).addEventListener('input', () => syncTaskForm()));
 F('tRepeat').addEventListener('change', () => {
   // Wochentage vorbelegen und ohne Datum mit heute beginnen
   if (F('tRepeat').value !== 'none' && !F('tDate').value) F('tDate').value = todayStr();
@@ -1874,6 +1897,11 @@ F('tRepeat').addEventListener('change', () => {
     const d = parseLocal(F('tDate').value || todayStr()).getDay();
     F('tWeekdays').querySelector(`input[value="${d}"]`).checked = true;
   }
+  syncTaskForm();
+});
+F('tNag').addEventListener('change', () => {
+  if (F('tNag').checked && !F('tDate').value) F('tDate').value = todayStr();
+  if (F('tNag').checked && !F('tAlarms').querySelector(':checked')) F('tAlarms').querySelector('input[value="0"]').checked = true;
   syncTaskForm();
 });
 F('tParent').addEventListener('change', () => renderDeps(dlg.id ? byId(dlg.id) : null, F('tParent').value || null));
@@ -1903,14 +1931,25 @@ function readTaskForm() {
       const wds = [...F('tWeekdays').querySelectorAll(':checked')].map(i => +i.value);
       if (!wds.length) return { err: 'Bitte mindestens einen Wochentag wählen.' };
       repeat = { type: 'custom', freq: 'weekly', interval: 1, weekdays: wds, ...base };
+    } else if (rv === 'monthend') {
+      const fe = Math.max(0, Math.min(27, parseInt(F('tFromEnd').value, 10) || 0));
+      repeat = { type: 'custom', freq: 'monthly', interval: 1, monthMode: 'fromend', fromEnd: fe, months: [], ...base };
     } else if (rv === 'keep') {
       repeat = { ...byId(dlg.id).repeat, ...base };
     } else repeat = { type: rv, ...base };
   }
+  // „N Tage vor Monatsende“: das Datum ist der erste Fälligkeitstag ab dem gewählten Datum
+  let dateOut = date;
+  if (date && repeat.monthMode === 'fromend') {
+    try {
+      const first = occurrences({ start: date + 'T00:00', end: date + 'T00:00', allDay: true, repeat, exceptions: [] }, parseLocal(date), addDays(parseLocal(date), 400))[0];
+      if (first) dateOut = ymd(first.start);
+    } catch {}
+  }
   return {
     data: {
       title, notes: F('tNotes').value.trim(), parentId: F('tParent').value || null,
-      date, time, endTime, endDate, repeat,
+      date: dateOut, time, endTime, endDate: endDate && endDate > dateOut ? endDate : '', repeat, nag: !!(date && F('tNag').checked),
       alarms: date ? [...F('tAlarms').querySelectorAll(':checked')].map(i => +i.value).sort((a, b) => a - b) : [],
       cal: F('tCal').checked, prio: F('tPrio').checked,
       amount, expcat: amount != null ? radioVal('tcat') : '',
@@ -1970,7 +2009,7 @@ function toast(html, opts = {}) {
 
 /* ================= Menü, Suche, Sicherung ================= */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
-const BUILD = '29.09.-m';
+const BUILD = '29.09.-o';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
