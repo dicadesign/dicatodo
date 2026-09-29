@@ -1946,7 +1946,7 @@ function toast(html, opts = {}) {
 
 /* ================= Menü, Suche, Sicherung ================= */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
-const BUILD = '29.09.-h';
+const BUILD = '29.09.-i';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
@@ -2195,10 +2195,6 @@ document.querySelectorAll('dialog').forEach(d => {
   d.addEventListener('pointerdown', e => { downOnBackdrop = e.target === d; });
   d.addEventListener('click', e => { if (e.target === d && downOnBackdrop) d.close(); });
 });
-
-// Fehler nicht stumm verschlucken: kurz einblenden (hilft bei der Fehlersuche auf dem Handy)
-window.addEventListener('error', e => { try { toast('Fehler: ' + esc(e.message || e.error)); } catch {} });
-window.addEventListener('unhandledrejection', e => { try { toast('Fehler: ' + esc((e.reason && e.reason.message) || e.reason)); } catch {} });
 
 /* ================= Start ================= */
 const ONLINE_URL = 'https://kalendar.dicakultur.com/todo/';
