@@ -1945,10 +1945,13 @@ function toast(html, opts = {}) {
 
 /* ================= Menü, Suche, Sicherung ================= */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
+const BUILD = '29.09.-d';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
-  F('calInfo').textContent = `📅 ${n} Kalendertermine gelesen (${MODE === 'server' ? 'Server' : 'dieser Browser'})`;
+  let today = '?';
+  try { today = calAppointments(state.date).length; } catch (e) { today = 'Fehler: ' + e.message; }
+  F('calInfo').textContent = `Version ${BUILD} · 📅 ${n} Kalendertermine gelesen (${MODE === 'server' ? 'Server' : 'dieser Browser'}), am gewählten Tag: ${today}`;
 }
 F('menuBtn').onclick = e => { updateCalInfo(); e.stopPropagation(); F('menu').classList.toggle('hidden'); if (!F('menu').classList.contains('hidden')) updateAccountInfo(); };
 document.addEventListener('click', e => { if (!e.target.closest('#menu, #menuBtn')) F('menu').classList.add('hidden'); });
@@ -2190,6 +2193,10 @@ document.querySelectorAll('dialog').forEach(d => {
   d.addEventListener('pointerdown', e => { downOnBackdrop = e.target === d; });
   d.addEventListener('click', e => { if (e.target === d && downOnBackdrop) d.close(); });
 });
+
+// Fehler nicht stumm verschlucken: kurz einblenden (hilft bei der Fehlersuche auf dem Handy)
+window.addEventListener('error', e => { try { toast('Fehler: ' + esc(e.message || e.error)); } catch {} });
+window.addEventListener('unhandledrejection', e => { try { toast('Fehler: ' + esc((e.reason && e.reason.message) || e.reason)); } catch {} });
 
 /* ================= Start ================= */
 const ONLINE_URL = 'https://kalendar.dicakultur.com/todo/';
