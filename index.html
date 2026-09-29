@@ -1945,7 +1945,7 @@ function toast(html, opts = {}) {
 
 /* ================= Menü, Suche, Sicherung ================= */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
-const BUILD = '29.09.-d';
+const BUILD = '29.09.-e';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
@@ -2114,6 +2114,7 @@ async function doSync() {
     sync.last = Date.now();
     syncPersist();
     if (changed || fresh) {
+      if (fresh) state.recenter = true;   // die Mindmap hat jetzt Inhalt: neu zentrieren
       reconcileCal();
       syncTrack('task', tasks);
       if (!document.querySelector('dialog[open]') && !state.editing) render();
@@ -2223,15 +2224,15 @@ async function init() {
     const me = await api('GET', 'me');
     MODE = 'server';
     F('calLink').href = '../';
-    render();   // ab jetzt aus dem Server-Speicher (Termine, Aufgaben)
+    state.recenter = true; render();   // ab jetzt aus dem Server-Speicher (Termine, Aufgaben)
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
     if (me.setupNeeded) return showAuth(true);
     startSync(me.user);
   } catch (e) {
-    if (e.status === 401 && !e.notApi) { MODE = 'server'; F('calLink').href = '../'; render(); return showAuth(false); }
+    if (e.status === 401 && !e.notApi) { MODE = 'server'; F('calLink').href = '../'; state.recenter = true; render(); return showAuth(false); }
     const known = store.load('syncUser', '');
     if (e.network && known) {   // offline: mit den Daten auf dem Gerät weiterarbeiten
-      MODE = 'server'; F('calLink').href = '../'; render();
+      MODE = 'server'; F('calLink').href = '../'; state.recenter = true; render();
       sync.on = true; sync.user = known; F('accountBox').classList.remove('hidden'); setSyncStatus('off');
       return;
     }
