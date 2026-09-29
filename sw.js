@@ -4,8 +4,8 @@
  *  - zeigt Push-Benachrichtigungen an und öffnet beim Antippen den passenden Tag
  */
 'use strict';
-const CACHE = 'dicatodo-v2';
-const SHELL = ['./', 'index.html', '../recurrence.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
+const CACHE = 'dicatodo-v3';
+const SHELL = ['./', 'index.html', '../recurrence.js', 'manifest.webmanifest', 'icons/todo-192.png', 'icons/todo-180.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -42,8 +42,8 @@ self.addEventListener('push', e => {
   e.waitUntil(self.registration.showNotification(d.title || 'dicaToDo', {
     body: d.body || '',
     tag: d.tag,
-    icon: 'icons/icon-192.png',
-    badge: 'icons/icon-192.png',
+    icon: 'icons/todo-192.png',
+    badge: 'icons/todo-192.png',
     data: { url: d.url || './' },
   }));
 });
