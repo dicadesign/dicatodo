@@ -59,7 +59,7 @@
   body {
     background: var(--bg); color: var(--text);
     font: 15px/1.4 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
-    display: grid; grid-template-rows: auto auto 1fr; height: 100dvh; overflow: hidden;
+    display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
   }
   button, input, select, textarea { font: inherit; color: inherit; }
   button {
@@ -111,7 +111,7 @@
   }
   .localbar a { margin-left: auto; font-weight: 700; color: var(--accent); white-space: nowrap; }
 
-  main { min-height: 0; position: relative; }
+  main { flex: 1; min-height: 0; position: relative; }
   .view { position: absolute; inset: 0; display: flex; flex-direction: column; }
 
   .nav { display: flex; gap: 8px; align-items: center; position: relative; }
@@ -1945,7 +1945,7 @@ function toast(html, opts = {}) {
 
 /* ================= Menü, Suche, Sicherung ================= */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
-const BUILD = '29.09.-e';
+const BUILD = '29.09.-f';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
