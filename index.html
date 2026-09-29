@@ -626,7 +626,7 @@ const state = {
   date: urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate) ? urlDate : todayStr(),   // '' = ohne Datum
   sel: null,            // gewähltes Thema: Aufgaben-ID oder 'center'
   editing: null,        // { id, isNew } – Thema mit Eingabefeld
-  zoom: store.load('zoom', 1),
+  zoom: 1,   // bewusst nicht gespeichert: die Mindmap beginnt immer bei 100 %
   showDone: store.load('showDone', true),
   listAll: store.load('listAll', false) === true,   // Liste: alle Tage statt nur des gewählten
   search: '',
@@ -1136,16 +1136,16 @@ function setZoom(z, cx, cy) {
   applyZoom();
   wrap.scrollLeft = px * z - ax;
   wrap.scrollTop = py * z - ay;
-  store.save('zoom', z);
 }
 function zoomFit() {
   if (!mapLayout) return;
   const wrap = F('mapWrap');
-  state.zoom = Math.min(1.2, Math.max(0.35, Math.min(wrap.clientWidth / mapLayout.W, (wrap.clientHeight) / mapLayout.H)));
+  // Ist schon verkleinert: zurück auf 100 % und zentrieren; sonst alles einpassen
+  if (state.zoom < 0.999) { state.zoom = 1; state.recenter = true; renderMap(); return; }
+  state.zoom = Math.min(1, Math.max(0.35, Math.min(wrap.clientWidth / mapLayout.W, wrap.clientHeight / mapLayout.H)));
   applyZoom();
   wrap.scrollLeft = (mapLayout.W * state.zoom - wrap.clientWidth) / 2;
   wrap.scrollTop = (mapLayout.H * state.zoom - wrap.clientHeight) / 2;
-  store.save('zoom', state.zoom);
 }
 
 function renderDatebar() {
@@ -1945,7 +1945,7 @@ function toast(html, opts = {}) {
 
 /* ================= Menü, Suche, Sicherung ================= */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
-const BUILD = '29.09.-f';
+const BUILD = '29.09.-g';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
