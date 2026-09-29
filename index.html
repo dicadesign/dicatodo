@@ -1258,21 +1258,25 @@ async function toggleDone(id, D) {
       if (a !== 'yes') return;
     }
   }
+  const val = !was;
+  setDone(t, val, D);
+  // Wie bei „Termine“: Oberaufgabe schaltet alle Teilaufgaben mit …
+  for (const d of descendants(t.id)) setDone(d, val, D);
+  // … und ist automatisch erledigt, sobald alle Teilaufgaben erledigt sind (bzw. wieder offen, wenn eine aufgemacht wird)
+  for (let p = byId(t.parentId); p; p = byId(p.parentId)) setDone(p, kids(p.id).every(k => doneOn(k, D)), D);
+  persist();
+}
+function setDone(t, val, D) {
+  if (doneOn(t, D) === val) return;
   if (isRec(t)) {
     const k = occOn(t, D) || nextDue(t) || D;
     const set = new Set(t.doneDates || []);
-    if (set.has(k)) set.delete(k); else set.add(k);
+    if (val) set.add(k); else set.delete(k);
     t.doneDates = [...set].sort().slice(-400);
   } else {
-    t.done = !t.done; t.doneAt = t.done ? Date.now() : 0;
+    t.done = val; t.doneAt = val ? Date.now() : 0;
   }
   t._touch = true;
-  persist();
-  // Letzte Teilaufgabe erledigt → Projekt abschließen?
-  const p = byId(t.parentId);
-  if (!was && p && !doneOn(p, D) && kids(p.id).every(k => doneOn(k, D))) {
-    toast(`Alle Teilaufgaben von „${esc(p.title)}“ sind erledigt.`, { action: 'Projekt abschließen', onAction: () => toggleDone(p.id, D) });
-  }
 }
 
 async function deleteTask(id) {
@@ -1956,7 +1960,7 @@ function toast(html, opts = {}) {
 
 /* ================= Menü, Suche, Sicherung ================= */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
-const BUILD = '29.09.-k';
+const BUILD = '29.09.-l';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
