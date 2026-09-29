@@ -1,0 +1,9 @@
+# Sicherungen (persönliche Daten)
+dicaToDo-*.json
+
+# Sonstiges
+.claude/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log

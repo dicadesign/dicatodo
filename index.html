@@ -1,0 +1,2239 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>dicaToDo</title>
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="dicaToDo">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f6f5f2;
+    --surface: #ffffff;
+    --surface-2: #f0eee9;
+    --text: #1d1c1a;
+    --muted: #6b6862;
+    --line: #e3e0da;
+    --accent: #0f766e;
+    --accent-ink: #ffffff;
+    --accent-soft: #d8efec;
+    --danger: #c0392b;
+    --warn: #b45309;
+    --shadow: 0 12px 36px rgba(20, 18, 14, .16);
+    --radius: 10px;
+    --canvas: #fbfaf8;
+    --central: #23313f;
+    --central-ink: #ffffff;
+    --sel: #2f80ed;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #141412;
+      --surface: #1d1c1a;
+      --surface-2: #262522;
+      --text: #ecebe7;
+      --muted: #a19d95;
+      --line: #33312d;
+      --accent: #2dd4bf;
+      --accent-ink: #06201d;
+      --accent-soft: #113a36;
+      --danger: #ef6b5b;
+      --warn: #f59e0b;
+      --shadow: 0 12px 36px rgba(0, 0, 0, .5);
+      --canvas: #181816;
+      --central: #e9eef3;
+      --central-ink: #16202a;
+      --sel: #5aa2ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.4 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    display: grid; grid-template-rows: auto auto 1fr; height: 100dvh; overflow: hidden;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button {
+    cursor: pointer; border: 1px solid var(--line); background: var(--surface);
+    border-radius: 8px; padding: 7px 12px;
+  }
+  button:hover { background: var(--surface-2); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { filter: brightness(1.08); }
+  button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); }
+  button.icon { width: 36px; padding: 7px 0; font-size: 18px; line-height: 1; }
+  button:disabled { opacity: .45; cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); }
+
+  /* ---------- Kopfzeile ---------- */
+  .topbar {
+    display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .06); position: relative; z-index: 30;
+  }
+  .brand { font-weight: 700; font-size: 18px; letter-spacing: -.01em; margin-right: 8px; white-space: nowrap; }
+  .brand span { color: var(--accent); }
+  .tabs { display: flex; gap: 4px; background: var(--surface-2); padding: 3px; border-radius: 10px; }
+  .tabs button { border: 0; background: transparent; padding: 6px 14px; display: grid; place-items: center; line-height: 1; border-radius: 8px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  .tabs button.on { background: var(--surface); color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .spacer { flex: 1; }
+  .search { width: 220px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; background: var(--surface); }
+  .topbtns { position: relative; display: flex; gap: 6px; align-items: center; }
+  a.icon { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; font-size: 18px; }
+  .menu {
+    position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 6px; min-width: 270px; max-width: calc(100vw - 24px);
+    display: flex; flex-direction: column;
+  }
+  .menu button { border: 0; text-align: left; }
+  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+  .menu-info { font-size: 12.5px; color: var(--muted); padding: 6px 12px 4px; line-height: 1.4; }
+  .syncstate { font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 999px; }
+  .syncstate.ok { color: var(--accent); background: var(--accent-soft); }
+  .syncstate.busy { color: var(--muted); background: var(--surface-2); }
+  .syncstate.off { color: var(--warn); background: color-mix(in srgb, #f59e0b 18%, var(--surface)); }
+  .localbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 16px;
+    background: color-mix(in srgb, #f59e0b 22%, var(--surface)); border-bottom: 1px solid #f59e0b; font-size: 13.5px;
+  }
+  .localbar a { margin-left: auto; font-weight: 700; color: var(--accent); white-space: nowrap; }
+
+  main { min-height: 0; position: relative; }
+  .view { position: absolute; inset: 0; display: flex; flex-direction: column; }
+
+  .nav { display: flex; gap: 8px; align-items: center; position: relative; }
+  .period { margin: 0 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+  .period > button { border: 0; background: transparent; padding: 4px 6px; font: inherit; display: flex; align-items: center; gap: 8px; border-radius: 8px; white-space: nowrap; }
+  .period .chev { width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translateY(-2px); }
+  .period input[type=date] { position: absolute; left: 0; bottom: 0; width: 100%; height: 1px; opacity: 0; pointer-events: none; }
+
+  /* ---------- Mindmap (Stil ähnlich XMind) ---------- */
+  .mapwrap {
+    flex: 1; overflow: auto; position: relative; background: var(--canvas);
+    touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; cursor: grab;
+  }
+  .mapwrap.panning { cursor: grabbing; user-select: none; }
+  .mapsizer { position: relative; }
+  .mapstage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .maplines { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+  .node {
+    position: absolute; left: 0; top: 0; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    display: flex; align-items: flex-start; gap: 6px; max-width: 250px; width: max-content;
+    --c: #2f6fdb; border-radius: 6px; -webkit-tap-highlight-color: transparent;
+  }
+  .node .tt { min-width: 0; }
+  .node .title { overflow-wrap: anywhere; }
+  .node.central {
+    background: var(--central); color: var(--central-ink); border-radius: 14px;
+    padding: 14px 22px; flex-direction: column; align-items: center; gap: 2px; max-width: 260px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.18); text-align: center;
+  }
+  .central .wd { font-size: 13px; opacity: .8; text-transform: uppercase; letter-spacing: .06em; }
+  .central .dt { font-size: 21px; font-weight: 700; line-height: 1.2; }
+  .central .sub { font-size: 12.5px; opacity: .75; }
+  /* Hauptthemen: farbige Kästen */
+  .node.d1 {
+    background: var(--c); color: #fff; padding: 8px 12px; border-radius: 8px; font-weight: 600; font-size: 15px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.14);
+  }
+  /* Unterthemen: Text mit Linie darunter */
+  .node.dn { padding: 3px 4px 4px; font-size: 14px; border-bottom: 2px solid var(--c); border-radius: 0; background: var(--canvas); }
+  .node.sel { outline: 2px solid var(--sel); outline-offset: 3px; }
+  .node.dn.sel { border-radius: 3px 3px 0 0; }
+  .node .chk {
+    flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%; padding: 0; margin-top: 1px;
+    border: 2px solid currentColor; background: transparent; display: grid; place-items: center;
+    font-size: 11px; line-height: 1; color: inherit; opacity: .9;
+  }
+  .node.dn .chk { color: var(--c); }
+  .node.d1 .chk { border-color: rgba(255,255,255,.85); }
+  .node.done .chk { background: currentColor; }
+  .node.done .chk::after { content: "✓"; color: var(--canvas); font-weight: 900; }
+  .node.d1.done .chk { background: #fff; }
+  .node.d1.done .chk::after { color: var(--c); }
+  .node.done .title { text-decoration: line-through; opacity: .65; }
+  .node.d1.done { opacity: .6; }
+  .node.blocked .title { opacity: .6; }
+  .chips { display: flex; flex-wrap: wrap; gap: 3px 5px; margin-top: 3px; font-size: 11.5px; font-weight: 600; }
+  .chip { display: inline-flex; align-items: center; gap: 3px; padding: 0 6px; border-radius: 999px; background: var(--surface-2); color: var(--muted); line-height: 18px; white-space: nowrap; }
+  .d1 .chip { background: rgba(255,255,255,.22); color: #fff; }
+  .chip.money { color: var(--text); }
+  .d1 .chip.money { color: #fff; }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .chip.late { background: color-mix(in srgb, var(--danger) 18%, var(--surface)); color: var(--danger); }
+  .d1 .chip.late { background: #fff; color: #b3261e; }
+  .stage {
+    flex: 0 0 auto; min-width: 18px; height: 18px; border-radius: 9px; background: var(--c); color: #fff;
+    font-size: 11px; font-weight: 800; display: grid; place-items: center; padding: 0 4px; margin-top: 1px;
+  }
+  .d1 .stage { background: #fff; color: var(--c); }
+  .node .nin {
+    border: 0; outline: 0; background: transparent; color: inherit; font: inherit; padding: 0;
+    width: 190px; min-width: 120px;
+  }
+  .node.d1 .nin::placeholder { color: rgba(255,255,255,.7); }
+  .fold {
+    position: absolute; top: 50%; width: 20px; height: 20px; margin-top: -10px; border-radius: 50%;
+    padding: 0; font-size: 11px; font-weight: 800; line-height: 1; display: grid; place-items: center;
+    background: var(--canvas); color: var(--c); border: 1.5px solid var(--c);
+  }
+  .dn .fold { top: auto; bottom: -11px; margin-top: 0; }
+  .node.r .fold { right: -27px; }
+  .node.l .fold { left: -27px; }
+  .fold.open { opacity: 0; }
+  .node:hover .fold.open, .node.sel .fold.open { opacity: 1; }
+  @media (pointer: coarse) { .fold.open { opacity: .75; } }
+  .mapempty {
+    position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); color: var(--muted); font-size: 14px;
+    background: var(--surface); border: 1px dashed var(--line); padding: 8px 14px; border-radius: 10px; text-align: center; width: max-content; max-width: 90%;
+  }
+  .zoom {
+    position: absolute; right: 14px; top: 14px; display: flex; flex-direction: column; gap: 4px; z-index: 5;
+  }
+  .zoom button { width: 36px; height: 36px; padding: 0; font-size: 18px; box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+
+  /* Aktionsleiste für das gewählte Thema */
+  .nodebar {
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: max(12px, env(safe-area-inset-bottom));
+    display: flex; gap: 4px; align-items: center; padding: 6px; z-index: 6;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+    max-width: calc(100% - 16px); overflow-x: auto; scrollbar-width: none;
+  }
+  .nodebar::-webkit-scrollbar { display: none; }
+  .nodebar button { border: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 9px; font-size: 18px; line-height: 1.1; white-space: nowrap; }
+  .nodebar button small { font-size: 10.5px; color: var(--muted); font-weight: 600; }
+  .nodebar button.danger small { color: var(--danger); }
+  .nodebar .sep { width: 1px; align-self: stretch; background: var(--line); margin: 4px 2px; }
+
+  /* ---------- Liste ---------- */
+  .scroll { flex: 1; overflow: auto; padding: 16px; padding-bottom: 80px; }
+  .col { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+  .sec h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .sec h3 button { font-size: 12px; padding: 2px 8px; text-transform: none; letter-spacing: 0; }
+  .sec h3.late { color: var(--danger); }
+  .rows { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .trow { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-top: 1px solid var(--line); cursor: pointer; }
+  .trow:first-child { border-top: 0; }
+  .trow:hover { background: var(--surface-2); }
+  .trow .chk { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--c, var(--accent)); padding: 0; background: transparent; flex: 0 0 auto; margin-top: 1px; display: grid; place-items: center; font-size: 12px; }
+  .trow.done .chk { background: var(--c, var(--accent)); color: #fff; }
+  .trow.done .rt { text-decoration: line-through; color: var(--muted); }
+  .trow .rm { flex: 1; min-width: 0; }
+  .trow .rs { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 3px 6px; margin-top: 2px; align-items: center; }
+  .trow .amt { font-weight: 700; white-space: nowrap; }
+  .trow.kalrow { cursor: default; }
+  .trow.kalrow.done .rt b { font-weight: 700; }
+  .trow.kalrow:hover { background: transparent; }
+  .kdot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: 0 0 auto; margin: 4px 4px 0; }
+  .listtop { display: flex; gap: 8px; align-items: center; }
+  .empty { color: var(--muted); padding: 30px 10px; text-align: center; }
+  details.donebox summary { cursor: pointer; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+
+  /* ---------- Zahlungen ---------- */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .card small { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .card b { display: block; font-size: 22px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .card.open b { color: var(--warn); }
+  .card.paid b { color: var(--accent); }
+  .catrow { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 10px 12px; border-top: 1px solid var(--line); }
+  .catrow:first-child { border-top: 0; }
+  .catrow .nm { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .catrow .nm i { width: 10px; height: 10px; border-radius: 50%; }
+  .catrow .sum { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .bar { grid-column: 1 / -1; height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; display: flex; }
+  .bar span { display: block; height: 100%; }
+  .catrow .det { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); }
+  .monthnav { display: flex; align-items: center; gap: 8px; }
+  .monthnav b { min-width: 150px; text-align: center; font-size: 17px; }
+
+  /* ---------- Dialoge ---------- */
+  dialog {
+    border: 1px solid var(--line); border-radius: 14px; padding: 0;
+    background: var(--surface); color: var(--text); box-shadow: var(--shadow);
+    width: min(580px, calc(100vw - 20px)); max-height: calc(100dvh - 24px);
+  }
+  dialog::backdrop { background: rgba(10, 10, 8, .45); }
+  dialog form, .dlg { padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; }
+  dialog h2 { margin: 0; font-size: 19px; }
+  dialog h2:focus { outline: none; }
+  label.f, div.f { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .field, label.f > input, label.f > select, label.f > textarea {
+    font-size: 15px; font-weight: 400; color: var(--text); width: 100%;
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface);
+  }
+  textarea { resize: vertical; min-height: 64px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid3 { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; }
+  .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 14.5px; font-weight: 500; color: var(--text); cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 13.5px; font-weight: 500; color: var(--text); cursor: pointer; background: var(--surface); }
+  .pill input { display: none; }
+  .pill:has(input:checked) { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .pill .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .pill:has(input:checked) .dot { outline: 2px solid var(--accent-ink); }
+  .pill.add { border-style: dashed; color: var(--muted); }
+  .amount { position: relative; }
+  .amount input { padding-right: 30px; font-variant-numeric: tabular-nums; }
+  .amount::after { content: "€"; position: absolute; right: 12px; bottom: 9px; color: var(--muted); font-weight: 600; }
+  .catbox {
+    border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface));
+    border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+    animation: reveal .22s ease-out;
+  }
+  @keyframes reveal { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  .catbox .hd { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; color: var(--muted); }
+  .catbox .hd button { font-size: 12.5px; padding: 3px 8px; }
+  .newcat { display: flex; gap: 6px; align-items: center; }
+  .newcat input[type=color] { width: 38px; height: 36px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .newcat input[type=text] { flex: 1; }
+  fieldset.box { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+  fieldset.box legend { font-size: 13px; font-weight: 700; color: var(--muted); padding: 0 4px; }
+  details.sect { border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; }
+  details.sect[open] { padding-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
+  details.sect > summary { cursor: pointer; padding: 10px 0; font-size: 13.5px; font-weight: 700; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 8px; }
+  details.sect[open] > summary { padding-bottom: 0; }
+  details.sect > summary::-webkit-details-marker { display: none; }
+  details.sect > summary::before { content: ""; width: 6px; height: 6px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; }
+  details.sect[open] > summary::before { transform: rotate(45deg); }
+  details.sect .sum { font-weight: 500; color: var(--text); margin-left: auto; font-size: 13px; text-align: right; }
+  .deps { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow: auto; }
+  .deps label { display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 400; color: var(--text); }
+  .deps label.dis { opacity: .45; }
+  .err { color: var(--danger); font-size: 14px; margin: 0; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .actions .left { margin-right: auto; }
+  .hint { font-size: 12.5px; color: var(--muted); font-weight: 400; }
+  .crow { display: flex; gap: 8px; align-items: center; }
+  .crow input[type=color] { width: 36px; height: 34px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); flex: 0 0 auto; }
+  .crow input[type=text] { flex: 1; min-width: 0; }
+  .crow small { color: var(--muted); white-space: nowrap; font-size: 12px; }
+
+  /* ---------- Hinweise ---------- */
+  #toasts { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; width: max-content; max-width: calc(100vw - 24px); }
+  .toast { background: #2a2926; color: #fff; padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); font-size: 14px; display: flex; gap: 12px; align-items: center; }
+  .toast button { background: transparent; color: #7ee3d6; border: 0; font-weight: 700; padding: 2px 4px; }
+
+  /* ---------- Anmeldung ---------- */
+  .auth { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: grid; place-items: center; padding: 16px; overflow: auto; }
+  .auth-card { width: min(380px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 28px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .auth-card img { border-radius: 18px; align-self: center; }
+  .auth-card h2 { margin: 0; text-align: center; font-size: 22px; }
+  .auth-card h2 span { color: var(--accent); }
+  .auth-card p { margin: 0; color: var(--muted); font-size: 14px; text-align: center; }
+
+  /* ---------- Handy ---------- */
+  @media (max-width: 760px) {
+    .topbar { flex-wrap: wrap; gap: 8px; padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
+    .search { width: 100%; order: 6; }
+    .nav { gap: 4px; }
+    .period { font-size: 16px; margin-left: 2px; }
+    .zoom { top: auto; bottom: 90px; right: 10px; }
+    .cards { grid-template-columns: 1fr 1fr; }
+    .cards .card:first-child { grid-column: 1 / -1; }
+    .grid3 { grid-template-columns: 1fr 1fr; }
+    .grid3 > :first-child { grid-column: 1 / -1; }
+    dialog form, .dlg { padding: 16px; }
+    .scroll { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">dica<span>ToDo</span></div>
+  <span id="syncState" class="syncstate hidden" role="status"></span>
+  <div class="nav" id="dayNav">
+    <button class="icon" id="prevDay" title="Vorheriger Tag" aria-label="Vorheriger Tag">‹</button>
+    <button id="todayBtn">Heute</button>
+    <button class="icon" id="nextDay" title="Nächster Tag" aria-label="Nächster Tag">›</button>
+    <h1 class="period"><button type="button" id="periodBtn" title="Datum wählen"><span id="periodLabel"></span><span class="chev" aria-hidden="true"></span></button><input type="date" id="datePick" aria-label="Datum wählen"></h1>
+  </div>
+  <nav class="tabs" aria-label="Ansicht">
+    <button data-view="map" title="Mindmap" aria-label="Mindmap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="12" r="3.2" fill="currentColor" stroke="none"/><path d="M10.2 12C13 12 13 5.5 15.5 5.5M10.2 12H15.5M10.2 12C13 12 13 18.5 15.5 18.5"/><rect x="15.5" y="3.5" width="6" height="4" rx="1.6" fill="currentColor" stroke="none"/><rect x="15.5" y="10" width="6" height="4" rx="1.6" fill="currentColor" stroke="none"/><rect x="15.5" y="16.5" width="6" height="4" rx="1.6" fill="currentColor" stroke="none"/></svg></button>
+    <button data-view="list" title="Liste" aria-label="Liste"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg></button>
+  </nav>
+  <div class="spacer"></div>
+  <input id="search" class="search" type="search" placeholder="Aufgaben suchen …" autocomplete="off">
+  <div class="topbtns">
+    <a id="calLink" class="icon" title="dicaKalendar öffnen" aria-label="dicaKalendar öffnen">📅</a>
+    <button id="menuBtn" class="icon" title="Menü" aria-label="Menü">⋯</button>
+    <div id="menu" class="menu hidden">
+      <button id="payBtn">💶 Zahlungen</button>
+      <button id="catsBtn">🏷️ Ausgaben-Kategorien verwalten</button>
+      <button id="doneToggle">👁 Erledigte ausblenden</button>
+      <div id="accountBox" class="hidden" style="display:flex;flex-direction:column">
+        <hr>
+        <div class="menu-info" id="accountInfo"></div>
+        <button id="syncNowBtn">🔄 Jetzt synchronisieren</button>
+        <button id="logoutBtn">🚪 Abmelden</button>
+      </div>
+      <hr>
+      <button id="exportBtn">⬇️ Aufgaben sichern (Export)</button>
+      <button id="importBtn">⬆️ Aufgaben wiederherstellen (Import)</button>
+      <div class="menu-info" id="calInfo"></div>
+      <div class="menu-info">Tasten in der Mindmap: <b>Pfeiltasten</b> navigieren · <b>Tab</b> Unterthema · <b>Enter</b> nächstes Thema · <b>F2</b> umbenennen · <b>Leertaste</b> erledigt · <b>Entf</b> löschen</div>
+    </div>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+  </div>
+</header>
+<div id="localbar" class="localbar hidden"></div>
+
+<main>
+  <!-- Mindmap -->
+  <section id="mapView" class="view">
+    <div id="mapWrap" class="mapwrap">
+      <div id="mapSizer" class="mapsizer">
+        <div id="mapStage" class="mapstage">
+          <svg id="mapLines" class="maplines"></svg>
+          <div id="mapNodes"></div>
+        </div>
+      </div>
+    </div>
+    <div class="zoom">
+      <button id="zoomIn" title="Vergrößern" aria-label="Vergrößern">+</button>
+      <button id="zoomOut" title="Verkleinern" aria-label="Verkleinern">−</button>
+      <button id="zoomFit" title="Ganze Mindmap zeigen" aria-label="Ganze Mindmap zeigen">⤢</button>
+    </div>
+    <div id="mapEmpty" class="mapempty hidden"></div>
+    <div id="nodebar" class="nodebar hidden"></div>
+  </section>
+
+  <!-- Liste -->
+  <section id="listView" class="view hidden"><div class="scroll"><div class="col" id="listCol"></div></div></section>
+
+  <!-- Zahlungen -->
+  <section id="payView" class="view hidden"><div class="scroll"><div class="col" id="payCol"></div></div></section>
+</main>
+
+<!-- Aufgabe bearbeiten -->
+<dialog id="taskDialog">
+  <form id="taskForm" novalidate>
+    <h2 id="tHeading" tabindex="-1" autofocus>Aufgabe</h2>
+    <label class="f">Titel
+      <input id="tTitle" autocomplete="off" placeholder="z. B. Miete überweisen">
+    </label>
+    <label class="f">Gehört zu
+      <select id="tParent"></select>
+    </label>
+
+    <fieldset class="box">
+      <legend>Wann</legend>
+      <div class="grid3">
+        <label class="f">Datum <input type="date" id="tDate"></label>
+        <label class="f">Von <input type="time" id="tTime"></label>
+        <label class="f">Bis <input type="time" id="tEndTime"></label>
+      </div>
+      <label class="check" id="tCalWrap"><input type="checkbox" id="tCal"> Im dicaKalendar anzeigen</label>
+    </fieldset>
+
+    <details class="sect" id="boxMulti">
+      <summary>Mehrtägig <span class="sum" id="sumMulti"></span></summary>
+      <label class="f">Bis einschließlich <input type="date" id="tEndDate"></label>
+    </details>
+
+    <details class="sect" id="boxRepeat">
+      <summary>Wiederholen <span class="sum" id="sumRepeat"></span></summary>
+      <div class="grid2">
+        <label class="f">Wiederholen
+          <select id="tRepeat">
+            <option value="none">Nie</option>
+            <option value="daily">Täglich</option>
+            <option value="weekdays">An bestimmten Wochentagen</option>
+            <option value="biweekly">Alle 2 Wochen</option>
+            <option value="monthly">Monatlich</option>
+            <option value="yearly">Jährlich</option>
+            <option value="keep" hidden>Eigene Regel (aus dem Kalender)</option>
+          </select>
+        </label>
+        <label class="f" id="tRepEndWrap">Ende der Wiederholung
+          <select id="tRepEnd">
+            <option value="never">Nie</option>
+            <option value="until">An einem Datum</option>
+            <option value="count">Nach Anzahl</option>
+          </select>
+        </label>
+      </div>
+      <div class="pills" id="tWeekdays"></div>
+      <div class="grid2" id="tRepEndVal">
+        <input type="date" id="tUntil" class="field">
+        <input type="number" id="tCount" class="field" min="1" max="999" placeholder="Anzahl">
+      </div>
+    </details>
+
+    <details class="sect" id="boxAlarm">
+      <summary>Erinnerung <span class="sum" id="sumAlarm"></span></summary>
+      <div class="pills" id="tAlarms"></div>
+      <div class="hint">Push-Benachrichtigung über dicaKalendar.</div>
+    </details>
+
+    <details class="sect" id="boxMoney">
+      <summary>Betrag <span class="sum" id="sumMoney"></span></summary>
+      <label class="f amount">Zahlung / Ausgabe
+        <input id="tAmount" inputmode="decimal" autocomplete="off" placeholder="0,00">
+      </label>
+      <div id="tCatBox" class="catbox hidden">
+        <div class="hd"><span>Art der Ausgabe</span><button type="button" id="tCatManage">⚙ Verwalten</button></div>
+        <div class="pills" id="tCats"></div>
+      </div>
+    </details>
+
+    <label class="check"><input type="checkbox" id="tPrio"> ★ Wichtig</label>
+
+    <details class="sect" id="tDepsBox">
+      <summary>Reihenfolge <span class="sum" id="sumDeps"></span></summary>
+      <div class="hint">Erst beginnen, wenn erledigt ist:</div>
+      <div class="deps" id="tDeps"></div>
+      <div class="hint">Nichts angehakt = kann parallel zu den anderen erledigt werden.</div>
+    </details>
+
+    <label class="f">Notizen
+      <textarea id="tNotes" rows="3"></textarea>
+    </label>
+    <div class="hint" id="tKids"></div>
+    <p id="tErr" class="err hidden"></p>
+    <div class="actions">
+      <button type="button" class="danger left" id="tDel">Löschen</button>
+      <button type="button" id="tCancel">Abbrechen</button>
+      <button type="submit" class="primary">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Kategorie wählen (nach Eingabe eines Betrags in der Mindmap) -->
+<dialog id="pickDialog">
+  <div class="dlg">
+    <h2 id="pickHeading" tabindex="-1" autofocus>Art der Ausgabe</h2>
+    <div class="pills" id="pickCats"></div>
+    <div class="actions">
+      <button type="button" id="pickManage" class="left">⚙ Verwalten</button>
+      <button type="button" id="pickSkip">Ohne Kategorie</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Kategorien verwalten -->
+<dialog id="catDialog">
+  <div class="dlg">
+    <h2 tabindex="-1" autofocus>Ausgaben-Kategorien</h2>
+    <div id="catList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="newcat">
+      <input type="color" id="newCatColor" value="#0f9fb3" aria-label="Farbe">
+      <input type="text" id="newCatName" class="field" placeholder="Neue Kategorie …" autocomplete="off">
+      <button type="button" id="newCatAdd" class="primary">Hinzufügen</button>
+    </div>
+    <div class="actions"><button type="button" id="catClose" class="primary">Fertig</button></div>
+  </div>
+</dialog>
+
+<!-- Rückfrage -->
+<dialog id="askDialog">
+  <div class="dlg">
+    <h2 id="askTitle" tabindex="-1" autofocus></h2>
+    <div id="askMsg"></div>
+    <div class="actions" id="askBtns"></div>
+  </div>
+</dialog>
+
+<div id="toasts"></div>
+
+<div id="authScreen" class="auth hidden">
+  <form class="auth-card" id="authForm">
+    <img src="icons/icon-192.png" width="72" height="72" alt="">
+    <h2>dica<span>ToDo</span></h2>
+    <p>Mit deinem dicaKalendar-Konto anmelden. Aufgaben und Kalender werden gemeinsam synchronisiert.</p>
+    <label class="f">Benutzername <input id="authUser" autocomplete="username" autocapitalize="none"></label>
+    <label class="f">Passwort <input id="authPw" type="password" autocomplete="current-password"></label>
+    <p id="authErr" class="err hidden"></p>
+    <button type="submit" class="primary" id="authSubmit">Anmelden</button>
+    <p id="authSetup" class="hidden">Noch kein Konto? Zuerst im <a href="../">dicaKalendar</a> anlegen.</p>
+  </form>
+</div>
+
+<!-- Gemeinsamer Wiederholungs-Motor von dicaKalendar: am Server unter /recurrence.js, lokal im Nachbarordner -->
+<script src="../recurrence.js"></script>
+<script>if (typeof occurrences === 'undefined') document.write('<script src="../dicaKalendar/recurrence.js"><\/script>');</script>
+<script>
+'use strict';
+/* ================= Grundlagen ================= */
+const F = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const todayStr = () => ymd(new Date());
+const eur = n => (+n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+const WDS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+const MONS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const BRANCH = ['#2f6fdb', '#e0892b', '#1f9d6b', '#d64545', '#8a55d6', '#0f9fb3', '#c2417c', '#7a8b1f'];
+const ALARM_OPTS = [[0, 'Zum Beginn'], [5, '5 Min.'], [15, '15 Min.'], [30, '30 Min.'], [60, '1 Std.'], [120, '2 Std.'], [1440, '1 Tag'], [2880, '2 Tage'], [10080, '1 Woche']];
+const DEFAULT_EXPCATS = [
+  { id: 'wohnen', name: 'Wohnen & Miete', color: '#2f6fdb' },
+  { id: 'lebensmittel', name: 'Lebensmittel', color: '#1f9d6b' },
+  { id: 'mobilitaet', name: 'Mobilität', color: '#e0892b' },
+  { id: 'versicherung', name: 'Versicherungen', color: '#8a55d6' },
+  { id: 'gesundheit', name: 'Gesundheit', color: '#d64545' },
+  { id: 'abos', name: 'Abos & Verträge', color: '#0f9fb3' },
+  { id: 'freizeit', name: 'Freizeit', color: '#c2417c' },
+  { id: 'steuern', name: 'Steuern & Gebühren', color: '#7a7f87' },
+  { id: 'sonstiges', name: 'Sonstiges', color: '#a0a4ab' },
+];
+const fmtD = (s, o) => parseLocal(s).toLocaleDateString('de-DE', o);
+const dShort = s => fmtD(s, { weekday: 'short', day: '2-digit', month: '2-digit', ...(s.slice(0, 4) !== todayStr().slice(0, 4) ? { year: '2-digit' } : {}) });
+function relDay(s) {
+  const n = dayDiff(parseLocal(todayStr()), parseLocal(s));
+  return { 0: 'Heute', 1: 'Morgen', 2: 'Übermorgen', '-1': 'Gestern' }[n] || (n > 0 ? `in ${n} Tagen` : `vor ${-n} Tagen`);
+}
+function parseAmount(s) {
+  s = String(s || '').replace(/[\s€]/g, '');
+  if (!s) return null;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isFinite(n) ? Math.round(n * 100) / 100 : NaN;
+}
+const amountText = n => n == null ? '' : n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/* ================= Speicher ================= */
+const store = {
+  load(k, d) { try { const v = localStorage.getItem('dicaToDo.' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  save(k, v) { try { localStorage.setItem('dicaToDo.' + k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem('dicaToDo.' + k); } catch {} },
+};
+let tasks = store.load('tasks', []);
+let expcats = store.load('expcats', DEFAULT_EXPCATS.map(c => ({ ...c })));
+let apdone = store.load('apdone', []);   // [{ id: 'kal:<Termin-ID>:<Beginn>' }] – als erledigt markierte Termine
+let collapsed = new Set(store.load('collapsed', []));
+let calSnap = store.load('calSnap', {});   // was dicaToDo zuletzt in den Kalender geschrieben hat: { eventId: json }
+
+const urlDate = new URLSearchParams(location.search).get('d');
+const state = {
+  view: ['map', 'list', 'pay'].includes(store.load('view', 'map')) ? store.load('view', 'map') : 'map',
+  date: urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate) ? urlDate : todayStr(),   // '' = ohne Datum
+  sel: null,            // gewähltes Thema: Aufgaben-ID oder 'center'
+  editing: null,        // { id, isNew } – Thema mit Eingabefeld
+  zoom: store.load('zoom', 1),
+  showDone: store.load('showDone', true),
+  listAll: store.load('listAll', false) === true,   // Liste: alle Tage statt nur des gewählten
+  search: '',
+  payMonth: todayStr().slice(0, 7),
+  recenter: true,
+};
+
+/* ================= Aufgaben: Hilfsfunktionen ================= */
+const byId = id => id ? tasks.find(t => t.id === id) : null;
+const kids = id => tasks.filter(t => t.parentId === id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.created || 0) - (b.created || 0));
+const siblings = t => kids(t.parentId || null).filter(x => x.id !== t.id);
+const isRec = t => !!(t.repeat && t.repeat.type && t.repeat.type !== 'none');
+const expcat = id => expcats.find(c => c.id === id);
+const descendants = id => kids(id).flatMap(k => [k, ...descendants(k.id)]);
+const pathOf = t => { const p = []; for (let x = byId(t.parentId); x; x = byId(x.parentId)) p.unshift(x.title || '…'); return p.join(' › '); };
+
+function newTask(fields) {
+  const t = {
+    id: uid(), parentId: null, title: '', notes: '', order: 0, done: false, doneAt: 0, doneDates: [],
+    date: '', time: '', endTime: '', endDate: '', repeat: { type: 'none' }, alarms: [], cal: true,
+    amount: null, expcat: '', deps: [], prio: false, calExceptions: [], created: Date.now(), updated: Date.now(),
+    ...fields,
+  };
+  const sib = kids(t.parentId);
+  if (fields.order == null) t.order = sib.length ? Math.max(...sib.map(s => s.order ?? 0)) + 1 : 0;
+  tasks.push(t);
+  return t;
+}
+// Termin-Form einer Aufgabe (gleiches Format wie in dicaKalendar)
+function taskEv(t) {
+  if (!t.date) return null;
+  const allDay = !t.time, last = t.endDate && t.endDate > t.date ? t.endDate : t.date;
+  let end;
+  if (allDay) end = last + 'T00:00';
+  else if (t.endTime) end = last + 'T' + t.endTime;
+  else end = toLocal(new Date(+parseLocal(last + 'T' + t.time) + 36e5));
+  return { start: allDay ? t.date + 'T00:00' : t.date + 'T' + t.time, end, allDay, repeat: t.repeat || { type: 'none' }, exceptions: t.calExceptions || [] };
+}
+// Beginn (Datum) des Vorkommens, das den Tag D berührt – oder null
+function occOn(t, D) {
+  const ev = taskEv(t);
+  if (!ev || !D) return null;
+  const d0 = parseLocal(D);
+  try { const o = occurrences(ev, d0, addDays(d0, 1))[0]; return o ? ymd(o.start) : null; } catch { return null; }
+}
+function doneOn(t, D) {
+  if (!isRec(t)) return !!t.done;
+  const k = occOn(t, D || todayStr()) || D;
+  return (t.doneDates || []).includes(k);
+}
+function nextDue(t) {
+  if (!t.date) return '';
+  if (!isRec(t)) return t.date;
+  const d0 = parseLocal(todayStr()), dd = new Set(t.doneDates || []);
+  try { const o = occurrences(taskEv(t), d0, addDays(d0, 800)).find(o => !dd.has(ymd(o.start))); return o ? ymd(o.start) : ''; } catch { return ''; }
+}
+const lastDay = t => (t.endDate && t.endDate > t.date ? t.endDate : t.date);
+const isOverdue = t => !isRec(t) && !t.done && !!t.date && lastDay(t) < todayStr();
+
+// Reihenfolge unter Geschwistern: t hängt (direkt oder indirekt) von id ab?
+function dependsOn(t, id, seen = new Set()) {
+  if (!t || seen.has(t.id)) return false;
+  seen.add(t.id);
+  return (t.deps || []).some(d => d === id || dependsOn(byId(d), id, seen));
+}
+function blockers(t, D) {
+  const sib = new Set(siblings(t).map(s => s.id));
+  return (t.deps || []).filter(d => sib.has(d)).map(byId).filter(x => x && !doneOn(x, D));
+}
+// Schritt-Nummern: parallele Aufgaben teilen sich eine Nummer. null = keine Reihenfolge festgelegt
+function stagesOf(list) {
+  const ids = new Set(list.map(t => t.id));
+  if (!list.some(t => (t.deps || []).some(d => ids.has(d)))) return null;
+  const memo = {};
+  const lv = (t, seen) => {
+    if (memo[t.id]) return memo[t.id];
+    if (seen.has(t.id)) return 1;
+    seen.add(t.id);
+    const ds = (t.deps || []).filter(d => ids.has(d)).map(byId);
+    return (memo[t.id] = ds.length ? 1 + Math.max(...ds.map(d => lv(d, seen))) : 1);
+  };
+  return Object.fromEntries(list.map(t => [t.id, lv(t, new Set())]));
+}
+function progress(t, D) {
+  const all = descendants(t.id);
+  return all.length ? { done: all.filter(x => doneOn(x, D)).length, all: all.length } : null;
+}
+function timeText(t) {
+  if (!t.time) return '';
+  return t.endTime ? `${t.time}–${t.endTime}` : t.time;
+}
+
+// Schnelleingabe: „Miete 850 €“, „Zahnarzt 10:00-11:00“
+function parseQuick(s) {
+  let amount = null, time = '', endTime = '';
+  s = s.replace(/(?:€\s*(\d{1,7}(?:[.,]\d{1,2})?))|(?:(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{1,7}(?:[.,]\d{1,2})?)\s*(?:€|eur\b|euro\b))/i, (m, a, b) => { amount = parseAmount(a || b); return ' '; });
+  s = s.replace(/\b([01]?\d|2[0-3]):([0-5]\d)(?:\s*(?:-|–|bis)\s*([01]?\d|2[0-3]):([0-5]\d))?(?:\s*Uhr)?/i, (m, h, mi, h2, mi2) => {
+    time = `${pad(+h)}:${mi}`;
+    if (h2) endTime = `${pad(+h2)}:${mi2}`;
+    return ' ';
+  });
+  return { title: s.replace(/\s{2,}/g, ' ').trim(), amount: isFinite(amount) ? amount : null, time, endTime };
+}
+
+/* ================= Speichern & Abgleich ================= */
+let undoSnap = null;
+function persist(opts = {}) {
+  for (const t of tasks) if (t._touch) { delete t._touch; t.updated = Date.now(); }
+  reconcileCal();
+  store.save('tasks', tasks);
+  store.save('expcats', expcats);
+  syncTrack('task', tasks);
+  syncTrack('expcat', expcats);
+  store.save('apdone', apdone);
+  syncTrack('apdone', apdone);
+  if (opts.render !== false) render();
+}
+const saveCollapsed = () => store.save('collapsed', [...collapsed]);
+
+/* ================= Verbindung zu dicaKalendar ================= */
+// Aufgaben mit Datum erscheinen im Kalender als Termine mit der ID „todo-<Aufgaben-ID>“.
+// Werden sie dort verschoben oder bearbeitet, übernimmt dicaToDo die neue Zeit; dort gelöscht → nicht mehr im Kalender.
+const KAL_CATS = { task: { id: 'dicatodo', name: 'Aufgaben', color: '#0f766e' }, pay: { id: 'dicatodo-pay', name: 'Zahlungen', color: '#b45309' } };
+const KAL_DEFAULT_CATS = [
+  { id: 'arbeit', name: 'Arbeit', color: '#2f6fdb' }, { id: 'privat', name: 'Privat', color: '#1f9d6b' },
+  { id: 'familie', name: 'Familie', color: '#e0892b' }, { id: 'gesundheit', name: 'Gesundheit', color: '#d64545' },
+  { id: 'sport', name: 'Sport', color: '#8a55d6' }, { id: 'sonstiges', name: 'Sonstiges', color: '#7a7f87' },
+];
+const calId = t => 'todo-' + t.id;
+
+function toEvent(t) {
+  if (!t.date || t.cal === false || !t.title) return null;
+  const ev = taskEv(t);
+  const done = !isRec(t) && t.done;
+  const notes = [];
+  const p = pathOf(t);
+  if (p) notes.push('Projekt: ' + p);
+  if (t.amount != null) notes.push(`Betrag: ${eur(t.amount)}${expcat(t.expcat) ? ' · ' + expcat(t.expcat).name : ''}`);
+  if (t.notes) notes.push(t.notes);
+  notes.push('— aus dicaToDo');
+  return {
+    id: calId(t), title: (done ? '✓ ' : '☐ ') + t.title, allDay: ev.allDay, start: ev.start, end: ev.end,
+    category: t.amount != null ? KAL_CATS.pay.id : KAL_CATS.task.id, with: '', location: '', notes: notes.join('\n'),
+    repeat: t.repeat || { type: 'none' }, alarms: done ? [] : [...(t.alarms || [])], exceptions: [...(t.calExceptions || [])], todo: t.id,
+  };
+}
+// Im Kalender geänderte Zeit/Wiederholung/Erinnerung in die Aufgabe übernehmen
+function adopt(t, ev) {
+  const before = JSON.stringify(t);
+  const s = ev.start || '', e = ev.end || s;
+  t.title = String(ev.title || t.title).replace(/^(☐|✓)\s*/, '') || t.title;
+  t.date = s.slice(0, 10);
+  if (ev.allDay) { t.time = ''; t.endTime = ''; t.endDate = e.slice(0, 10) > t.date ? e.slice(0, 10) : ''; }
+  else {
+    t.time = s.slice(11, 16);
+    t.endTime = e.slice(11, 16);
+    t.endDate = e.slice(0, 10) > t.date ? e.slice(0, 10) : '';
+  }
+  t.repeat = ev.repeat || { type: 'none' };
+  if (!(!isRec(t) && t.done)) t.alarms = Array.isArray(ev.alarms) ? ev.alarms : [];
+  t.calExceptions = ev.exceptions || [];
+  if (JSON.stringify(t) !== before) t.updated = Date.now();
+}
+
+// Zugriff auf die Kalenderdaten: lokal über den gemeinsamen Browser-Speicher, am Server über die Synchronisation
+const calLocal = {
+  read() {
+    let evs = [], cats = null;
+    try { evs = JSON.parse(localStorage.getItem('dicaKalender.events') || '[]'); } catch {}
+    try { cats = JSON.parse(localStorage.getItem('dicaKalender.categories') || 'null'); } catch {}
+    return { evs, cats };
+  },
+  load() {
+    const { evs, cats } = this.read();
+    return { events: new Map(evs.filter(e => e && String(e.id).startsWith('todo-')).map(e => [e.id, e])), cats: cats || KAL_DEFAULT_CATS };
+  },
+  write(puts, dels, newCats) {
+    if (!puts.length && !dels.length && !newCats.length) return;
+    const { evs, cats } = this.read();
+    const del = new Set(dels), put = new Map(puts.map(e => [e.id, e]));
+    const out = [];
+    for (const e of evs) {
+      if (del.has(e.id)) continue;
+      if (put.has(e.id)) { out.push(put.get(e.id)); put.delete(e.id); } else out.push(e);
+    }
+    out.push(...put.values());
+    try {
+      localStorage.setItem('dicaKalender.events', JSON.stringify(out));
+      if (newCats.length) localStorage.setItem('dicaKalender.categories', JSON.stringify([...(cats || KAL_DEFAULT_CATS), ...newCats]));
+    } catch {}
+  },
+};
+const calServer = {
+  events: store.load('calEvents', {}),
+  cats: store.load('calCats', []),
+  save() { store.save('calEvents', this.events); store.save('calCats', this.cats); },
+  load() { return { events: new Map(Object.entries(this.events).filter(([id]) => id.startsWith('todo-'))), cats: this.cats }; },
+  write(puts, dels, newCats) {
+    for (const e of puts) { this.events[e.id] = e; sync.outbox['event|' + e.id] = { kind: 'event', id: e.id, data: e, deleted: false }; }
+    for (const id of dels) { delete this.events[id]; sync.outbox['event|' + id] = { kind: 'event', id, deleted: true }; }
+    for (const c of newCats) { this.cats.push(c); sync.outbox['category|' + c.id] = { kind: 'category', id: c.id, data: c, deleted: false }; }
+    if (puts.length || dels.length || newCats.length) { this.save(); syncPersist(); queueSync(); }
+  },
+};
+let MODE = 'local';   // 'local' | 'server'
+const cal = () => MODE === 'server' ? calServer : calLocal;
+
+// Termine aus dicaKalendar (ohne die eigenen „todo-“-Einträge) für einen Tag
+function calAppointments(D) {
+  if (!D) return [];
+  let evs, cats;
+  if (MODE === 'server') { evs = Object.values(calServer.events); cats = calServer.cats; }
+  else { const r = calLocal.read(); evs = r.evs; cats = r.cats || KAL_DEFAULT_CATS; }
+  const d0 = parseLocal(D), d1 = addDays(d0, 1), out = [];
+  for (const ev of evs) {
+    if (!ev || !ev.id || String(ev.id).startsWith('todo-') || !ev.start) continue;
+    let occ = [];
+    try { occ = occurrences(ev.end ? ev : { ...ev, end: ev.start }, d0, d1); } catch { continue; }
+    for (const o of occ) {
+      const c = (cats || []).find(x => x.id === ev.category);
+      out.push({ id: 'kal:' + ev.id + ':' + +o.start, title: ev.title || ev.with || 'Termin', allDay: !!ev.allDay, start: o.start, end: o.end,
+        with: ev.with || '', where: ev.location || '', color: c ? c.color : '#7a7f87', cat: c ? c.name : '' });
+    }
+  }
+  return out.sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
+}
+const apTime = a => a.allDay ? 'ganztägig' : (sameDay(a.start, a.end) || +a.end === +a.start ? `${hm(a.start)}${+a.end > +a.start ? '–' + hm(a.end) : ''}` : `${hm(a.start)} → ${dShort(ymd(a.end))}`);
+
+function reconcileCal() {
+  if (MODE === 'server' && !sync.snap) return;   // erst nach dem ersten Abgleich mit dem Server
+  const { events, cats } = cal().load();
+  const map = new Map(tasks.map(t => [t.id, t]));
+  const ids = new Set([...Object.keys(calSnap), ...events.keys(), ...tasks.map(calId)]);
+  const puts = [], dels = [];
+  let changedTasks = false;
+  for (const id of ids) {
+    const t = map.get(id.slice(5)), cur = events.get(id), last = calSnap[id];
+    if (t && cur && last && JSON.stringify(cur) !== last) { adopt(t, cur); changedTasks = true; }
+    else if (t && !cur && last && t.cal !== false) { t.cal = false; t.updated = Date.now(); changedTasks = true; }   // im Kalender gelöscht
+    const want = t ? toEvent(t) : null;
+    if (want) {
+      const j = JSON.stringify(want);
+      if (!cur || JSON.stringify(cur) !== j) puts.push(want);
+      calSnap[id] = j;
+    } else {
+      if (cur) dels.push(id);
+      delete calSnap[id];
+    }
+  }
+  const have = new Set((cats || []).map(c => c.id));
+  const newCats = [...new Set(puts.map(e => e.category))].filter(c => !have.has(c)).map(c => ({ ...(c === KAL_CATS.pay.id ? KAL_CATS.pay : KAL_CATS.task) }));
+  cal().write(puts, dels, newCats);
+  store.save('calSnap', calSnap);
+  if (changedTasks) { store.save('tasks', tasks); }
+  return changedTasks;
+}
+
+/* ================= Anzeige: allgemein ================= */
+function render() {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.view === state.view && !state.search));
+  const view = state.search ? 'list' : state.view;
+  F('dayNav').classList.toggle('hidden', view === 'pay' || !!state.search || (view === 'list' && state.listAll));
+  F('mapView').classList.toggle('hidden', view !== 'map');
+  F('listView').classList.toggle('hidden', view !== 'list');
+  F('payView').classList.toggle('hidden', view !== 'pay');
+  F('doneToggle').textContent = state.showDone ? '👁 Erledigte ausblenden' : '👁 Erledigte anzeigen';
+  if (view === 'map') renderMap();
+  else if (view === 'list') { renderDatebar(); renderList(); }
+  else renderPay();
+}
+function setView(v) {
+  state.view = v; store.save('view', v);
+  if (state.search) { state.search = ''; F('search').value = ''; }
+  if (v === 'map') state.recenter = true;
+  render();
+}
+function goDate(D) {
+  state.date = D; state.sel = null; state.editing = null; state.recenter = true;
+  if (state.search) { state.search = ''; F('search').value = ''; }
+  if (state.view === 'pay') state.view = 'map';
+  render();
+}
+
+/* ================= Mindmap ================= */
+function mapRoots(D) {
+  const today = todayStr();
+  let set;
+  if (!D) set = tasks.filter(t => !t.parentId && !t.date);
+  else {
+    const on = tasks.filter(t => occOn(t, D) || (D === today && isOverdue(t)));
+    const onIds = new Set(on.map(t => t.id));
+    set = on.filter(t => { for (let p = byId(t.parentId); p; p = byId(p.parentId)) if (onIds.has(p.id)) return false; return true; });
+  }
+  const ed = state.editing && state.editing.id;
+  if (!state.showDone) set = set.filter(t => !doneOn(t, D) || t.id === ed);
+  return set.sort((a, b) => (a.time || '99').localeCompare(b.time || '99') || (isOverdue(b) - isOverdue(a))
+    || (!!b.prio - !!a.prio) || (a.order ?? 0) - (b.order ?? 0) || (a.created || 0) - (b.created || 0));
+}
+function buildNode(t, depth, D, color) {
+  const all = kids(t.id);
+  const ed = state.editing && state.editing.id;
+  const shown = all.filter(c => state.showDone || !doneOn(c, D) || c.id === ed);
+  const st = stagesOf(all);
+  const n = { t, depth, color, nKids: all.length, children: [] };
+  if (!collapsed.has(t.id) || shown.some(c => c.id === ed)) {
+    n.children = shown.map(c => { const cn = buildNode(c, depth + 1, D, color); cn.stage = st && st[c.id]; return cn; });
+  }
+  n.folded = !!all.length && !n.children.length && collapsed.has(t.id);
+  return n;
+}
+
+function kalHtml(n) {
+  const cls = ['node', n.depth === 1 ? 'd1' : 'dn', n.side > 0 ? 'r' : 'l', 'kal'];
+  if (state.sel === n.t.id) cls.push('sel');
+  if (n.kal === 'head') {
+    if (n.allDone) cls.push('done');
+    const fold = `<button class="fold${n.folded ? '' : ' open'}" data-fold="kal" aria-label="${n.folded ? 'Aufklappen' : 'Zuklappen'}">${n.folded ? n.count : '−'}</button>`;
+    return `<div class="${cls.join(' ')}" data-id="kal" style="--c:${n.color}"><button class="chk" data-chk="kal" aria-label="${n.allDone ? 'Als offen markieren' : 'Alle als erledigt markieren'}"></button><div class="tt"><span class="title">Termine</span></div>${fold}</div>`;
+  }
+  const a = n.ap;
+  if (apIsDone(a.id)) cls.push('done');
+  return `<div class="${cls.join(' ')}" data-id="${esc(a.id)}" style="--c:${esc(a.color)}"><button class="chk" data-chk="${esc(a.id)}" aria-label="Als erledigt markieren"></button><div class="tt"><span class="title">${esc(a.title)}</span><div class="chips"><span class="chip">${esc(a.allDay ? 'ganztägig' : hm(a.start))}</span></div></div></div>`;
+}
+function nodeHtml(n, D) {
+  if (n.kal) return kalHtml(n);
+  const t = n.t, today = todayStr();
+  const cls = ['node', n.depth === 1 ? 'd1' : 'dn', n.side > 0 ? 'r' : 'l'];
+  const done = doneOn(t, D);
+  if (done) cls.push('done');
+  const blk = blockers(t, D);
+  if (blk.length && !done) cls.push('blocked');
+  if (state.sel === t.id) cls.push('sel');
+  const editing = state.editing && state.editing.id === t.id;
+  const chips = [];
+  if (t.prio) chips.push('<span class="chip">★</span>');
+  if (isOverdue(t)) chips.push(`<span class="chip late">überfällig · ${esc(dShort(t.date))}</span>`);
+  else if (t.date && D !== t.date && !occOn(t, D)) chips.push(`<span class="chip">📅 ${esc(dShort(nextDue(t) || t.date))}</span>`);
+  if (t.time) chips.push(`<span class="chip">🕑 ${esc(timeText(t))}</span>`);
+  if (t.endDate && t.endDate > t.date) chips.push(`<span class="chip">bis ${esc(dShort(t.endDate))}</span>`);
+  if (isRec(t)) chips.push('<span class="chip" title="Wiederholt sich">↻</span>');
+  if (t.alarms && t.alarms.length && t.date) chips.push('<span class="chip" title="Erinnerung">🔔</span>');
+  if (t.amount != null) {
+    const c = expcat(t.expcat);
+    chips.push(`<span class="chip money">${c ? `<i class="dot" style="background:${esc(c.color)}"></i>` : ''}${esc(eur(t.amount))}</span>`);
+  }
+  if (blk.length && !done) chips.push(`<span class="chip" title="Wartet auf: ${esc(blk.map(b => b.title).join(', '))}">🔒 wartet</span>`);
+  const pr = progress(t, D);
+  if (pr) chips.push(`<span class="chip">${pr.done}/${pr.all}</span>`);
+  if (n.depth === 1 && t.parentId && D) chips.push(`<span class="chip">↳ ${esc(pathOf(t))}</span>`);
+  if (t.notes) chips.push('<span class="chip" title="Notiz">📝</span>');
+  const title = editing
+    ? `<input class="nin" value="${esc(t.title)}" placeholder="${n.depth === 1 ? 'Neue Aufgabe …' : 'Teilaufgabe …'}" enterkeyhint="next" autocomplete="off" aria-label="Titel">`
+    : `<span class="title">${esc(t.title) || '<i class="muted">(ohne Titel)</i>'}</span>`;
+  const fold = n.nKids ? `<button class="fold${n.folded ? '' : ' open'}" data-fold="${t.id}" title="${n.folded ? 'Aufklappen' : 'Zuklappen'}" aria-label="${n.folded ? 'Aufklappen' : 'Zuklappen'}">${n.folded ? n.nKids : '−'}</button>` : '';
+  return `<div class="${cls.join(' ')}" data-id="${t.id}" style="--c:${n.color}">
+    ${n.stage ? `<span class="stage" title="Schritt ${n.stage}">${n.stage}</span>` : ''}
+    <button class="chk" data-chk="${t.id}" aria-label="${done ? 'Als offen markieren' : 'Als erledigt markieren'}"></button>
+    <div class="tt">${title}${chips.length && !editing ? `<div class="chips">${chips.join('')}</div>` : ''}</div>${fold}</div>`;
+}
+function centralHtml(D, roots) {
+  const cls = 'node central' + (state.sel === 'center' ? ' sel' : '');
+  if (!D) return `<div class="${cls}" data-id="center"><div class="wd">Irgendwann</div><div class="dt">Ohne Datum</div><div class="sub">${roots.length} Aufgabe${roots.length === 1 ? '' : 'n'}</div></div>`;
+  const d = parseLocal(D), open = roots.filter(t => !doneOn(t, D)).length;
+  return `<div class="${cls}" data-id="center">
+    <div class="wd">${WDL[d.getDay()]} · ${esc(relDay(D))}</div>
+    <div class="dt">${d.getDate()}. ${MONS[d.getMonth()]}${d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : ''}</div>
+    <div class="sub">${open} offen${roots.length - open ? ` · ${roots.length - open} erledigt` : ''}</div></div>`;
+}
+
+let mapLayout = null, mapNav = null;
+function renderMap() {
+  const D = state.date, wrap = F('mapWrap');
+  renderDatebar();
+  const roots = mapRoots(D);
+  const oneSided = wrap.clientWidth < 720;
+  const aps = calAppointments(D);
+  const center = { center: true, depth: 0, children: roots.map((t, i) => buildNode(t, 1, D, BRANCH[i % BRANCH.length])) };
+  if (aps.length) {
+    const head = { t: { id: 'kal' }, kal: 'head', depth: 1, color: '#5b6572', nKids: aps.length, count: aps.length, children: [], allDone: aps.every(a => apIsDone(a.id)) };
+    head.folded = collapsed.has('kal');
+    if (!head.folded) head.children = aps.map(a => ({ t: { id: a.id }, kal: 'item', ap: a, depth: 2, color: a.color, children: [], nKids: 0 }));
+    center.children.unshift(head);
+  }
+  const topSt = stagesOf(roots.filter(r => !r.parentId));
+  if (topSt) center.children.forEach(n => { if (!n.kal && !n.t.parentId) n.stage = topSt[n.t.id]; });
+
+  // Seiten verteilen (wie XMind „ausgeglichen“): abwechselnd dorthin, wo weniger Platz belegt ist
+  const flat = [];
+  (function walk(n) { flat.push(n); n.children.forEach(walk); })(center);
+  // Erst mit vorläufiger Seite rendern, um die Größen zu messen
+  const sideOf = new Map();
+  center.children.forEach(c => (function mark(n, s) { n.side = s; n.children.forEach(k => mark(k, s)); })(c, 1));
+  F('mapNodes').innerHTML = flat.map(n => n.center ? centralHtml(D, roots) : nodeHtml(n, D)).join('');
+  const els = F('mapNodes').children;
+  flat.forEach((n, i) => { n.el = els[i]; n.w = n.el.offsetWidth; n.h = n.el.offsetHeight; });
+
+  const GX1 = 56, GX = 34, GY = 14;
+  const measure = n => {
+    n.children.forEach(measure);
+    const ch = n.children.reduce((s, c) => s + c.sh, 0) + GY * Math.max(0, n.children.length - 1);
+    n.sh = Math.max(n.h, ch);
+    n.chH = ch;
+  };
+  center.children.forEach(measure);
+  const right = [], left = [];
+  let rh = 0, lh = 0;
+  for (const c of center.children) {
+    if (oneSided || rh <= lh) { right.push(c); rh += c.sh + GY; } else { left.push(c); lh += c.sh + GY; }
+  }
+  const place = (n, x, top, side) => {
+    n.side = side;
+    n.y = top + (n.sh - n.h) / 2;
+    n.x = side > 0 ? x : x - n.w;
+    let cy = top + (n.sh - n.chH) / 2;
+    const nx = side > 0 ? n.x + n.w + GX : n.x - GX;
+    for (const c of n.children) { place(c, nx, cy, side); cy += c.sh + GY; }
+  };
+  center.w = flat[0].w; center.h = flat[0].h;
+  center.x = -center.w / 2; center.y = -center.h / 2;
+  for (const [list, side] of [[right, 1], [left, -1]]) {
+    const total = list.reduce((s, c) => s + c.sh, 0) + GY * Math.max(0, list.length - 1);
+    let y = -total / 2;
+    for (const c of list) { place(c, side > 0 ? center.w / 2 + GX1 : -center.w / 2 - GX1, y, side); y += c.sh + GY; }
+  }
+  // Seitenklassen korrigieren (Aufklapp-Knopf innen/außen)
+  flat.forEach(n => { if (!n.center) { n.el.classList.toggle('r', n.side > 0); n.el.classList.toggle('l', n.side < 0); } });
+
+  const PAD = 60, PADB = 110;
+  const minX = Math.min(...flat.map(n => n.x)) - PAD - 30, maxX = Math.max(...flat.map(n => n.x + n.w)) + PAD + 30;
+  const minY = Math.min(...flat.map(n => n.y)) - PAD, maxY = Math.max(...flat.map(n => n.y + n.h)) + PADB;
+  const W = maxX - minX, H = maxY - minY;
+  flat.forEach(n => { n.x -= minX; n.y -= minY; n.el.style.transform = `translate(${Math.round(n.x)}px, ${Math.round(n.y)}px)`; });
+
+  // Verbindungslinien: geschwungen; Unterthemen hängen an ihrer Unterstreichung
+  const paths = [];
+  const anchorOut = (n, side) => {
+    if (n.center) return { x: side > 0 ? n.x + n.w - 6 : n.x + 6, y: n.y + n.h / 2 };
+    if (n.depth === 1) return { x: side > 0 ? n.x + n.w : n.x, y: n.y + n.h / 2 };
+    return { x: side > 0 ? n.x + n.w : n.x, y: n.y + n.h - 1 };
+  };
+  const anchorIn = n => n.depth === 1
+    ? { x: n.side > 0 ? n.x : n.x + n.w, y: n.y + n.h / 2 }
+    : { x: n.side > 0 ? n.x : n.x + n.w, y: n.y + n.h - 1 };
+  (function lines(n) {
+    for (const c of n.children) {
+      const a = anchorOut(n, c.side), b = anchorIn(c);
+      const dx = (b.x - a.x) * 0.5;
+      const w = c.depth === 1 ? 3 : c.depth === 2 ? 2 : 1.5;
+      paths.push(`<path d="M${a.x},${a.y} C${a.x + dx},${a.y} ${b.x - dx},${b.y} ${b.x},${b.y}" stroke="${c.color}" stroke-width="${w}" fill="none" stroke-linecap="round"/>`);
+      lines(c);
+    }
+    // Zugeklappte Äste: kurzer Strich zum Zähler
+    if (n.folded) {
+      const a = anchorOut(n, n.side);
+      paths.push(`<path d="M${a.x},${a.y} h${n.side > 0 ? 8 : -8}" stroke="${n.color}" stroke-width="1.5"/>`);
+    }
+  })(center);
+  const svg = F('mapLines');
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  svg.innerHTML = paths.join('');
+  mapNav = { center, flat };
+  (function link(n) { n.children.forEach(c => { c.parent = n; link(c); }); })(center);
+  mapLayout = { W, H, cx: center.x + center.w / 2, cy: center.y + center.h / 2, oneSided, cLeft: center.x };
+  F('mapStage').style.width = W + 'px';
+  F('mapStage').style.height = H + 'px';
+  applyZoom();
+
+  if (state.recenter) {
+    state.recenter = false;
+    const z = state.zoom;
+    wrap.scrollLeft = oneSided ? Math.max(0, mapLayout.cLeft * z - 12) : mapLayout.cx * z - wrap.clientWidth / 2;
+    wrap.scrollTop = mapLayout.cy * z - wrap.clientHeight / 2 + 30;
+  }
+
+  const empty = F('mapEmpty');
+  empty.classList.toggle('hidden', roots.length > 0 || aps.length > 0 || !!state.editing);
+  empty.innerHTML = D ? 'Noch nichts geplant. Tippe auf das Datum und dann auf <b>＋ Aufgabe</b>.' : 'Hier landen Aufgaben ohne Datum. Tippe auf die Mitte und dann auf <b>＋ Aufgabe</b>.';
+  renderNodebar();
+
+  // Eingabefeld eines neuen / umbenannten Themas
+  const inp = F('mapNodes').querySelector('.nin');
+  if (inp) {
+    inp.focus({ preventScroll: true });
+    inp.select();
+    const nodeEl = inp.closest('.node');
+    const r = nodeEl.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+    if (r.right > wr.right - 20) wrap.scrollLeft += r.right - wr.right + 60;
+    if (r.left < wr.left + 10) wrap.scrollLeft -= wr.left - r.left + 60;
+    if (r.bottom > wr.bottom - 90) wrap.scrollTop += r.bottom - wr.bottom + 120;
+    if (r.top < wr.top + 10) wrap.scrollTop -= wr.top - r.top + 40;
+  }
+}
+
+function applyZoom() {
+  if (!mapLayout) return;
+  const z = state.zoom;
+  F('mapStage').style.transform = `scale(${z})`;
+  F('mapSizer').style.width = mapLayout.W * z + 'px';
+  F('mapSizer').style.height = mapLayout.H * z + 'px';
+}
+function setZoom(z, cx, cy) {
+  const wrap = F('mapWrap'), r = wrap.getBoundingClientRect();
+  z = Math.min(1.8, Math.max(0.35, z));
+  const ax = cx == null ? r.width / 2 : cx - r.left, ay = cy == null ? r.height / 2 : cy - r.top;
+  const px = (wrap.scrollLeft + ax) / state.zoom, py = (wrap.scrollTop + ay) / state.zoom;
+  state.zoom = z;
+  applyZoom();
+  wrap.scrollLeft = px * z - ax;
+  wrap.scrollTop = py * z - ay;
+  store.save('zoom', z);
+}
+function zoomFit() {
+  if (!mapLayout) return;
+  const wrap = F('mapWrap');
+  state.zoom = Math.min(1.2, Math.max(0.35, Math.min(wrap.clientWidth / mapLayout.W, (wrap.clientHeight) / mapLayout.H)));
+  applyZoom();
+  wrap.scrollLeft = (mapLayout.W * state.zoom - wrap.clientWidth) / 2;
+  wrap.scrollTop = (mapLayout.H * state.zoom - wrap.clientHeight) / 2;
+  store.save('zoom', state.zoom);
+}
+
+function renderDatebar() {
+  F('datePick').value = state.date || '';
+  F('periodLabel').textContent = state.date ? parseLocal(state.date).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Ohne Datum';
+}
+
+function renderNodebar() {
+  const bar = F('nodebar');
+  if (!state.sel || state.editing) { bar.classList.add('hidden'); return; }
+  const b = (act, icon, label, cls = '') => `<button data-act="${act}" class="${cls}" title="${esc(label)}">${icon}<small>${esc(label)}</small></button>`;
+  if (String(state.sel).startsWith('kal')) {
+    bar.innerHTML = b('openCal', '📅', 'Im Kalender öffnen');
+  } else if (state.sel === 'center') {
+    bar.innerHTML = b('addRoot', '＋', 'Aufgabe') + b('addDialog', '📝', 'Mit Details');
+  } else {
+    const t = byId(state.sel);
+    if (!t) { state.sel = null; bar.classList.add('hidden'); return; }
+    const done = doneOn(t, state.date);
+    const ks = kids(t.id);
+    const seq = ks.length > 1 && ks.some(k => (k.deps || []).length);
+    bar.innerHTML = b('done', done ? '↩' : '✓', done ? 'Offen' : 'Erledigt')
+      + b('addChild', '↳', 'Unterthema') + b('addSibling', '＋', 'Daneben')
+      + b('rename', '✏️', 'Umbenennen') + b('details', '⚙', 'Details')
+      + (ks.length > 1 ? b('order', seq ? '∥' : '⛓', seq ? 'Parallel' : 'Nacheinander') : '')
+      + '<span class="sep"></span>' + b('delete', '🗑', 'Löschen', 'danger');
+  }
+  bar.classList.remove('hidden');
+}
+
+/* --- Aktionen in der Mindmap --- */
+function select(id) { state.sel = id; F('mapNodes').querySelectorAll('.node.sel').forEach(e => e.classList.remove('sel')); const el = id && F('mapNodes').querySelector(`[data-id="${id}"]`); if (el) el.classList.add('sel'); renderNodebar(); }
+function addRoot() {
+  const D = state.date;
+  const t = newTask({ date: D || '', alarms: [] });
+  state.editing = { id: t.id, isNew: true }; state.sel = t.id;
+  renderMap();
+}
+function addChild(parentId) {
+  const t = newTask({ parentId });
+  collapsed.delete(parentId); saveCollapsed();
+  state.editing = { id: t.id, isNew: true }; state.sel = t.id;
+  renderMap();
+}
+function addSibling(id) {
+  const ref = byId(id);
+  if (!ref) return addRoot();
+  // Hauptthema an diesem Tag → neue Aufgabe am selben Tag; sonst neue Teilaufgabe beim gleichen Oberthema
+  const isRootHere = !F('mapNodes').querySelector(`[data-id="${id}"]`)?.classList.contains('dn');
+  if (isRootHere && !ref.parentId) return addRoot();
+  const t = newTask({ parentId: ref.parentId, order: (ref.order ?? 0) + 0.5 });
+  kids(ref.parentId).forEach((k, i) => { k.order = i; });
+  state.editing = { id: t.id, isNew: true }; state.sel = t.id;
+  renderMap();
+}
+function startRename(id) { state.editing = { id, isNew: false }; state.sel = id; renderMap(); }
+
+// Eingabe übernehmen. how: 'enter' | 'tab' | 'blur' | 'escape'
+function commitEdit(value, how) {
+  const ed = state.editing;
+  if (!ed) return;
+  const t = byId(ed.id);
+  state.editing = null;
+  if (!t) return render();
+  if (how === 'escape' || !value.trim()) {
+    if (ed.isNew) { tasks = tasks.filter(x => x !== t); state.sel = t.parentId || 'center'; if (!byId(state.sel)) state.sel = 'center'; }
+    render();
+    return;
+  }
+  const q = parseQuick(value);
+  t.title = q.title || value.trim();
+  if (q.time) {
+    t.time = q.time; t.endTime = q.endTime;
+    if (!t.date) t.date = state.date || todayStr();
+  }
+  if (q.amount != null) t.amount = q.amount;
+  t._touch = true;
+  const needCat = q.amount != null && !t.expcat;
+  persist({ render: false });
+  if (needCat) { render(); openCatPicker(t.id); return; }
+  if (how === 'enter' && ed.isNew) return addSibling(t.id);
+  if (how === 'tab') return addChild(t.id);
+  render();
+}
+
+const apIsDone = id => apdone.some(x => x.id === id);
+function toggleAp(id) {
+  const aps = calAppointments(state.date);
+  const ids = id === 'kal' ? aps.map(a => a.id) : [id];
+  const allDone = ids.every(apIsDone);
+  apdone = apdone.filter(x => !ids.includes(x.id));
+  if (!allDone) apdone.push(...ids.map(i => ({ id: i })));
+  // alte Einträge (über 60 Tage) aufräumen
+  const limit = Date.now() - 60 * 864e5;
+  apdone = apdone.filter(x => +String(x.id).split(':').pop() > limit);
+  persist();
+}
+async function toggleDone(id, D) {
+  if (String(id).startsWith('kal')) return toggleAp(id);
+  const t = byId(id);
+  if (!t) return;
+  D = D || state.date || todayStr();
+  const was = doneOn(t, D);
+  if (!was) {
+    const blk = blockers(t, D);
+    if (blk.length) {
+      const a = await ask('Reihenfolge', `„${esc(t.title)}“ wartet noch auf: <b>${blk.map(b => esc(b.title)).join(', ')}</b>. Trotzdem als erledigt markieren?`, [['yes', 'Trotzdem erledigt', 'primary'], ['no', 'Abbrechen']]);
+      if (a !== 'yes') return;
+    }
+  }
+  if (isRec(t)) {
+    const k = occOn(t, D) || nextDue(t) || D;
+    const set = new Set(t.doneDates || []);
+    if (set.has(k)) set.delete(k); else set.add(k);
+    t.doneDates = [...set].sort().slice(-400);
+  } else {
+    t.done = !t.done; t.doneAt = t.done ? Date.now() : 0;
+  }
+  t._touch = true;
+  persist();
+  // Letzte Teilaufgabe erledigt → Projekt abschließen?
+  const p = byId(t.parentId);
+  if (!was && p && !doneOn(p, D) && kids(p.id).every(k => doneOn(k, D))) {
+    toast(`Alle Teilaufgaben von „${esc(p.title)}“ sind erledigt.`, { action: 'Projekt abschließen', onAction: () => toggleDone(p.id, D) });
+  }
+}
+
+async function deleteTask(id) {
+  const t = byId(id);
+  if (!t) return;
+  const sub = descendants(id);
+  if (sub.length) {
+    const a = await ask('Löschen', `„${esc(t.title)}“ und <b>${sub.length} Teilaufgabe${sub.length === 1 ? '' : 'n'}</b> löschen?`, [['yes', 'Alles löschen', 'danger'], ['no', 'Abbrechen']]);
+    if (a !== 'yes') return false;
+  }
+  undoSnap = JSON.stringify(tasks);
+  const gone = new Set([id, ...sub.map(s => s.id)]);
+  tasks = tasks.filter(x => !gone.has(x.id));
+  for (const x of tasks) if ((x.deps || []).some(d => gone.has(d))) { x.deps = x.deps.filter(d => !gone.has(d)); x._touch = true; }
+  if (state.sel && gone.has(state.sel)) state.sel = null;
+  persist();
+  toast(`„${esc(t.title || 'Aufgabe')}“ gelöscht.`, { action: 'Rückgängig', onAction: () => { if (undoSnap) { tasks = JSON.parse(undoSnap); undoSnap = null; tasks.forEach(x => { x._touch = gone.has(x.id); }); persist(); } } });
+  return true;
+}
+
+function toggleOrder(id) {
+  const ks = kids(id);
+  const seq = ks.some(k => (k.deps || []).length);
+  ks.forEach((k, i) => { k.deps = seq || i === 0 ? [] : [ks[i - 1].id]; k._touch = true; });
+  persist();
+  toast(seq ? 'Die Teilaufgaben können jetzt parallel erledigt werden.' : 'Die Teilaufgaben sind jetzt nacheinander (Schritt 1, 2, 3 …). Einzelne Abhängigkeiten lassen sich unter „Details“ ändern.');
+}
+
+F('nodebar').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]');
+  if (!b) return;
+  const id = state.sel;
+  ({
+    addRoot, addDialog: () => openTask(null, { date: state.date }),
+    done: () => toggleDone(id), addChild: () => addChild(id), addSibling: () => addSibling(id),
+    rename: () => startRename(id), details: () => openTask(id), order: () => toggleOrder(id),
+    delete: () => deleteTask(id),
+    openCal: () => { location.href = F('calLink').href; },
+  })[b.dataset.act]();
+});
+
+// Klicks auf Themen
+let panMoved = false;
+F('mapNodes').addEventListener('click', e => {
+  if (panMoved) return;
+  if (e.target.closest('.nin')) return;
+  const fold = e.target.closest('[data-fold]');
+  if (fold) {
+    const id = fold.dataset.fold;
+    if (collapsed.has(id)) collapsed.delete(id); else collapsed.add(id);
+    saveCollapsed(); renderMap(); return;
+  }
+  const chk = e.target.closest('[data-chk]');
+  if (chk) { toggleDone(chk.dataset.chk); return; }
+  const node = e.target.closest('.node');
+  if (!node) return;
+  if (state.editing) return;
+  const id = node.dataset.id;
+  if (id === 'center' && state.sel === 'center') return addRoot();
+  select(id);
+});
+F('mapNodes').addEventListener('dblclick', e => {
+  const node = e.target.closest('.node');
+  if (!node || e.target.closest('.chk, .fold, .nin')) return;
+  if (node.classList.contains('kal')) return;
+  if (node.dataset.id === 'center') return addRoot();
+  startRename(node.dataset.id);
+});
+// Detalles: Rechtsklick (Computer) oder Finger gedrückt halten (Handy)
+function openNodeDetails(node) {
+  if (!node || state.editing) return;
+  const id = node.dataset.id;
+  if (node.classList.contains('kal')) return;
+  if (id === 'center') return openTask(null, { date: state.date });
+  select(id);
+  openTask(id);
+}
+F('mapNodes').addEventListener('contextmenu', e => {
+  const node = e.target.closest('.node');
+  if (!node) return;
+  e.preventDefault();                       // auch bei langem Drücken: kein System-Menü
+  if (e.target.closest('.nin')) return;
+  if (Date.now() - longPressAt < 800) return;   // Halten wurde unten schon behandelt
+  openNodeDetails(node);
+});
+let longPressAt = 0, longPressSuppress = false;
+(() => {
+  let timer = null, start = null;
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  F('mapNodes').addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' || e.target.closest('.nin, .chk, .fold')) return;
+    const node = e.target.closest('.node');
+    if (!node) return;
+    start = { x: e.clientX, y: e.clientY };
+    cancel();
+    timer = setTimeout(() => {
+      timer = null; longPressAt = Date.now(); longPressSuppress = true;
+      if (navigator.vibrate) navigator.vibrate(15);
+      openNodeDetails(node);
+    }, 500);
+  });
+  F('mapNodes').addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancel(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => F('mapNodes').addEventListener(t, cancel));
+  // Der Klick nach dem langen Drücken soll nichts auswählen
+  F('mapNodes').addEventListener('click', e => { if (longPressSuppress) { longPressSuppress = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+})();
+F('mapNodes').addEventListener('keydown', e => {
+  const inp = e.target.closest('.nin');
+  if (!inp) return;
+  if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); commitEdit(inp.value, 'enter'); }
+  else if (e.key === 'Tab') { e.preventDefault(); commitEdit(inp.value, 'tab'); }
+  else if (e.key === 'Escape') { e.preventDefault(); commitEdit(inp.value, 'escape'); }
+});
+F('mapNodes').addEventListener('focusout', e => {
+  const inp = e.target.closest('.nin');
+  if (!inp || !state.editing) return;
+  const id = inp.closest('.node').dataset.id;
+  // Blur durch Neuzeichnen ignorieren; nur echtes Verlassen übernimmt die Eingabe
+  setTimeout(() => { if (state.editing && state.editing.id === id && !document.activeElement?.classList.contains('nin')) commitEdit(inp.value, 'blur'); }, 0);
+});
+// Leere Fläche: Auswahl aufheben
+F('mapWrap').addEventListener('click', e => {
+  if (panMoved || e.target.closest('.node')) return;
+  if (state.sel) { state.sel = null; select(null); }
+});
+
+// Pfeiltasten: wie in XMind – Richtung der Äste folgen, oben/unten = benachbarte Themen
+function navArrow(key) {
+  if (!mapNav) return;
+  const { center, flat } = mapNav;
+  const cur = state.sel && state.sel !== 'center' ? flat.find(n => !n.center && n.t.id === state.sel) : null;
+  const go = n => {
+    select(n.center ? 'center' : n.t.id);
+    const el = F('mapNodes').querySelector(`[data-id="${n.center ? 'center' : n.t.id}"]`);
+    if (!el) return;
+    const wrap = F('mapWrap'), r = el.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+    const m = 50;
+    if (r.left < w.left + m) wrap.scrollLeft -= w.left + m - r.left;
+    if (r.right > w.right - m) wrap.scrollLeft += r.right - w.right + m;
+    if (r.top < w.top + m) wrap.scrollTop -= w.top + m - r.top;
+    if (r.bottom > w.bottom - 110) wrap.scrollTop += r.bottom - w.bottom + 110;
+  };
+  const side = k => (k === 'ArrowRight' ? 1 : k === 'ArrowLeft' ? -1 : 0);
+  if (!state.sel || state.sel === 'center') {
+    if (!state.sel) return go(center);
+    const s = side(key);
+    const kids0 = center.children.filter(c => !s || c.side === s);
+    if (s && kids0.length) return go(kids0[0]);
+    if (!s && center.children.length) return go(key === 'ArrowDown' ? center.children[0] : center.children[center.children.length - 1]);
+    return;
+  }
+  if (!cur) return;
+  if (side(key)) {
+    if (side(key) === cur.side) {                      // nach außen: erstes Unterthema (zugeklappt → aufklappen)
+      if (cur.children.length) return go(cur.children[0]);
+      if (cur.folded) { collapsed.delete(cur.t.id); saveCollapsed(); renderMap(); return go(mapNav.flat.find(n => !n.center && n.t.id === cur.t.id)); }
+      return;
+    }
+    return go(cur.parent);                             // nach innen: Oberthema (oder die Mitte)
+  }
+  // oben/unten: nächstes Thema derselben Ebene auf derselben Seite
+  const row = flat.filter(n => !n.center && n.depth === cur.depth && n.side === cur.side).sort((a, b) => a.y - b.y);
+  const i = row.indexOf(cur), nx = row[i + (key === 'ArrowDown' ? 1 : -1)];
+  if (nx) go(nx);
+}
+
+// Tastatur (Computer)
+document.addEventListener('keydown', e => {
+  if (state.view !== 'map' || state.search || state.editing || document.querySelector('dialog[open]')) return;
+  if (e.target.closest('input, textarea, select')) return;
+  const id = state.sel;
+  if (e.key.startsWith('Arrow') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); return navArrow(e.key); }
+  if (!id) { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); select('center'); } return; }
+  if (String(id).startsWith('kal')) { if (e.key === 'Escape') select(null); else if (e.key === 'Enter') { e.preventDefault(); location.href = F('calLink').href; } return; }
+  if (id === 'center') {
+    if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'Insert') { e.preventDefault(); addRoot(); }
+    else if (e.key === 'Escape') select(null);
+    return;
+  }
+  const k = e.key;
+  if (k === 'Tab' || k === 'Insert') { e.preventDefault(); addChild(id); }
+  else if (k === 'Enter') { e.preventDefault(); addSibling(id); }
+  else if (k === 'F2') { e.preventDefault(); startRename(id); }
+  else if (k === ' ') { e.preventDefault(); toggleDone(id); }
+  else if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); deleteTask(id); }
+  else if (k === 'Escape') select(null);
+  else if (k === 'e' || k === 'E') { e.preventDefault(); openTask(id); }
+});
+
+// Verschieben mit der Maus, Zoomen mit Strg+Mausrad oder zwei Fingern
+(() => {
+  const wrap = F('mapWrap');
+  let drag = null;
+  wrap.addEventListener('pointerdown', e => {
+    panMoved = false;
+    if (e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest('.node')) return;
+    drag = { x: e.clientX, y: e.clientY, sl: wrap.scrollLeft, st: wrap.scrollTop };
+  });
+  window.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!panMoved && Math.hypot(dx, dy) < 4) return;
+    panMoved = true;
+    wrap.classList.add('panning');
+    wrap.scrollLeft = drag.sl - dx; wrap.scrollTop = drag.st - dy;
+  });
+  window.addEventListener('pointerup', () => { if (drag) { drag = null; wrap.classList.remove('panning'); setTimeout(() => { panMoved = false; }, 0); } });
+  wrap.addEventListener('wheel', e => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    setZoom(state.zoom * (e.deltaY < 0 ? 1.1 : 0.9), e.clientX, e.clientY);
+  }, { passive: false });
+  let pinch = null;
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  wrap.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) pinch = { d: dist(e.touches), z: state.zoom };
+  }, { passive: true });
+  wrap.addEventListener('touchmove', e => {
+    if (!pinch || e.touches.length !== 2) return;
+    e.preventDefault();
+    const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2, cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    setZoom(pinch.z * dist(e.touches) / pinch.d, cx, cy);
+  }, { passive: false });
+  wrap.addEventListener('touchend', e => { if (e.touches.length < 2) pinch = null; });
+})();
+F('zoomIn').onclick = () => setZoom(state.zoom * 1.2);
+F('zoomOut').onclick = () => setZoom(state.zoom / 1.2);
+F('zoomFit').onclick = zoomFit;
+
+F('prevDay').onclick = () => goDate(ymd(addDays(parseLocal(state.date || todayStr()), -1)));
+F('nextDay').onclick = () => goDate(ymd(addDays(parseLocal(state.date || todayStr()), 1)));
+F('todayBtn').onclick = () => goDate(todayStr());
+F('periodBtn').onclick = () => { const p = F('datePick'); p.style.pointerEvents = 'auto'; try { p.showPicker(); } catch { p.focus(); p.click(); } setTimeout(() => { p.style.pointerEvents = ''; }, 300); };
+F('datePick').onchange = e => { if (e.target.value) goDate(e.target.value); };
+// Wischen auf der Datumsleiste nicht als Tageswechsel werten – die Leiste scrollt selbst
+
+/* ================= Liste ================= */
+function rowHtml(t, D, extra = '', depth = 0, noPath = false) {
+  const done = doneOn(t, D);
+  const c = expcat(t.expcat);
+  const sub = [];
+  const p = noPath ? '' : pathOf(t);
+  if (p) sub.push(`↳ ${esc(p)}`);
+  if (extra) sub.push(extra);
+  if (t.time) sub.push('🕑 ' + esc(timeText(t)));
+  if (isRec(t)) sub.push('↻');
+  const pr = progress(t, D);
+  if (pr) sub.push(`${pr.done}/${pr.all} Teilaufgaben`);
+  const blk = blockers(t, D);
+  if (blk.length && !done) sub.push('🔒 wartet auf ' + esc(blk.map(b => b.title).join(', ')));
+  if (t.amount != null) sub.push(`<span class="amt">${esc(eur(t.amount))}</span>${c ? ' · ' + esc(c.name) : ''}`);
+  return `<div class="trow${done ? ' done' : ''}" data-open="${t.id}" style="--c:${c ? esc(c.color) : 'var(--accent)'}${depth ? `;padding-left:${12 + depth * 22}px` : ''}">
+    <button class="chk" data-chk="${t.id}" data-d="${D || ''}" aria-label="erledigt">${done ? '✓' : ''}</button>
+    <div class="rm"><div class="rt">${t.prio ? '★ ' : ''}${esc(t.title) || '<i class="muted">(ohne Titel)</i>'}</div>${sub.length ? `<div class="rs">${sub.join(' · ')}</div>` : ''}</div></div>`;
+}
+function renderList() {
+  const today = todayStr(), q = norm(state.search);
+  const col = F('listCol');
+  const top = `<div class="listtop"><button class="primary" id="listNew">＋ Neue Aufgabe</button><span class="spacer"></span></div>`;
+  if (q) {
+    const hits = tasks.filter(t => norm(`${t.title} ${t.notes} ${pathOf(t)} ${expcat(t.expcat)?.name || ''}`).includes(q))
+      .sort((a, b) => (nextDue(a) || '9').localeCompare(nextDue(b) || '9'));
+    col.innerHTML = top + `<div class="sec"><h3>Suche: ${hits.length} Treffer</h3>${hits.length ? `<div class="rows">${hits.map(t => rowHtml(t, nextDue(t) || today, t.date ? esc(dShort(nextDue(t) || t.date)) : 'ohne Datum')).join('')}</div>` : '<div class="empty">Nichts gefunden.</div>'}</div>`;
+    return;
+  }
+  const allBtn = `<button id="listAllBtn">${state.listAll ? 'Nur gewählten Tag' : 'Alle Tage'}</button>`;
+  if (!state.listAll) {
+    // Wie in der Mindmap: die Aufgaben des gewählten Tages samt Teilaufgaben
+    const D = state.date;
+    const roots = mapRoots(D);
+    const walk = (t, depth, stage) => {
+      let out = rowHtml(t, D, stage ? `Schritt ${stage}` : '', depth, depth > 0);
+      const all = kids(t.id), st = stagesOf(all);
+      for (const k of all.filter(k => state.showDone || !doneOn(k, D))) out += walk(k, depth + 1, st && st[k.id]);
+      return out;
+    };
+    const label = D ? `${relDay(D)} · ${parseLocal(D).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}` : 'Ohne Datum';
+    const aps = calAppointments(D);
+    const apRow = (a, depth) => { const dn = apIsDone(a.id); return `<div class="trow kalrow${dn ? ' done' : ''}" style="--c:${esc(a.color)};padding-left:${12 + depth * 22}px"><button class="chk" data-chk="${esc(a.id)}" aria-label="erledigt">${dn ? '✓' : ''}</button><div class="rm"><div class="rt">${esc(a.title)}</div><div class="rs">${esc(a.allDay ? 'ganztägig' : hm(a.start))}</div></div></div>`; };
+    const allDn = aps.length && aps.every(a => apIsDone(a.id));
+    const apHead = aps.length ? `<div class="trow kalrow${allDn ? ' done' : ''}" style="--c:#5b6572"><button class="chk" data-chk="kal" aria-label="erledigt">${allDn ? '✓' : ''}</button><div class="rm"><div class="rt"><b>Termine</b></div></div></div>` + aps.map(a => apRow(a, 1)).join('') : '';
+    const rows = apHead + roots.map(t => walk(t, 0)).join('');
+    col.innerHTML = top.replace('<span class="spacer"></span>', '<span class="spacer"></span>' + allBtn)
+      + `<div class="sec"><h3>${esc(label)}</h3>${rows ? `<div class="rows">${rows}</div>` : '<div class="empty">Nichts geplant.</div>'}</div>`;
+    return;
+  }
+  // Eigenständige Einträge: Hauptaufgaben und Teilaufgaben mit eigenem Datum
+  const items = tasks.filter(t => !t.parentId || t.date);
+  const late = [], byDay = {}, noDate = [], done = [];
+  for (const t of items) {
+    if (!isRec(t) && t.done) { done.push(t); continue; }
+    if (isOverdue(t)) { late.push(t); continue; }
+    if (!t.date) { if (!t.parentId) noDate.push(t); continue; }
+    let d = nextDue(t);
+    if (!isRec(t) && t.date < today && lastDay(t) >= today) d = today;
+    if (!d) continue;
+    (byDay[d] = byDay[d] || []).push(t);
+  }
+  const sortDay = l => l.sort((a, b) => (a.time || '99').localeCompare(b.time || '99') || (!!b.prio - !!a.prio) || (a.created || 0) - (b.created || 0));
+  let html = top.replace('<span class="spacer"></span>', '<span class="spacer"></span>' + allBtn);
+  if (late.length) html += `<div class="sec"><h3 class="late">Überfällig</h3><div class="rows">${late.sort((a, b) => a.date.localeCompare(b.date)).map(t => rowHtml(t, today, esc(dShort(t.date)))).join('')}</div></div>`;
+  for (const d of Object.keys(byDay).sort()) {
+    const label = `${relDay(d)} · ${parseLocal(d).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+    html += `<div class="sec"><h3>${esc(label)} <button data-map="${d}">🧠 Mindmap</button></h3><div class="rows">${sortDay(byDay[d]).map(t => rowHtml(t, d)).join('')}</div></div>`;
+  }
+  if (noDate.length) html += `<div class="sec"><h3>Ohne Datum <button data-map="">🧠 Mindmap</button></h3><div class="rows">${sortDay(noDate).map(t => rowHtml(t, today)).join('')}</div></div>`;
+  if (!late.length && !Object.keys(byDay).length && !noDate.length) html += '<div class="empty">Keine offenen Aufgaben. 🎉</div>';
+  if (done.length) {
+    html += `<details class="donebox"><summary>Erledigt (${done.length})</summary><div class="rows">${done.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 100).map(t => rowHtml(t, today, t.date ? esc(dShort(t.date)) : '')).join('')}</div></details>`;
+  }
+  col.innerHTML = html;
+}
+function listClick(e) {
+  const chk = e.target.closest('[data-chk]');
+  if (chk) { e.stopPropagation(); toggleDone(chk.dataset.chk, chk.dataset.d || undefined); return; }
+  const m = e.target.closest('[data-map]');
+  if (m) { goDate(m.dataset.map); return; }
+  if (e.target.closest('#listNew')) { openTask(null, { date: state.listAll ? '' : (state.date || '') }); return; }
+  if (e.target.closest('#listAllBtn')) { state.listAll = !state.listAll; store.save('listAll', state.listAll); render(); return; }
+  const row = e.target.closest('[data-open]');
+  if (row) openTask(row.dataset.open);
+}
+F('listCol').addEventListener('click', listClick);
+
+/* ================= Zahlungen ================= */
+function renderPay() {
+  const [y, m] = state.payMonth.split('-').map(Number);
+  const m0 = new Date(y, m - 1, 1), m1 = new Date(y, m, 1);
+  const entries = [];
+  for (const t of tasks) {
+    if (t.amount == null) continue;
+    const ev = taskEv(t);
+    if (!ev) continue;
+    let occ = [];
+    try { occ = occurrences(ev, m0, m1); } catch {}
+    for (const o of occ) { const d = ymd(o.start); if (d >= ymd(m0)) entries.push({ t, d, done: isRec(t) ? (t.doneDates || []).includes(d) : !!t.done }); }
+  }
+  entries.sort((a, b) => a.d.localeCompare(b.d));
+  const undated = tasks.filter(t => t.amount != null && !t.date && !t.done);
+  const sum = l => l.reduce((s, e) => s + (e.t.amount || 0), 0);
+  const total = sum(entries), paid = sum(entries.filter(e => e.done));
+  const byCat = new Map();
+  for (const e of entries) {
+    const k = expcat(e.t.expcat) ? e.t.expcat : '';
+    const g = byCat.get(k) || { open: 0, paid: 0 };
+    if (e.done) g.paid += e.t.amount; else g.open += e.t.amount;
+    byCat.set(k, g);
+  }
+  const maxCat = Math.max(1, ...[...byCat.values()].map(g => g.open + g.paid));
+  const catRows = [...byCat.entries()].sort((a, b) => (b[1].open + b[1].paid) - (a[1].open + a[1].paid)).map(([k, g]) => {
+    const c = expcat(k) || { name: 'Ohne Kategorie', color: '#9a9a9a' };
+    const tot = g.open + g.paid;
+    return `<div class="catrow"><div class="nm"><i style="background:${esc(c.color)}"></i>${esc(c.name)}</div><div class="sum">${esc(eur(tot))}</div>
+      <div class="bar" style="width:${Math.max(4, tot / maxCat * 100)}%"><span style="width:${tot ? g.paid / tot * 100 : 0}%;background:${esc(c.color)}"></span><span style="flex:1;background:color-mix(in srgb, ${esc(c.color)} 30%, transparent)"></span></div>
+      <div class="det">${g.paid ? `bezahlt ${esc(eur(g.paid))}` : ''}${g.paid && g.open ? ' · ' : ''}${g.open ? `offen ${esc(eur(g.open))}` : ''}</div></div>`;
+  }).join('');
+  const label = `${MONS[m - 1]} ${y}`;
+  F('payCol').innerHTML = `
+    <div class="listtop"><div class="monthnav"><button class="icon" data-mon="-1" aria-label="Voriger Monat">‹</button><b>${label}</b><button class="icon" data-mon="1" aria-label="Nächster Monat">›</button></div>
+      <span class="spacer"></span><button id="payNew" class="primary">＋ Zahlung</button></div>
+    <div class="cards"><div class="card"><small>Gesamt</small><b>${esc(eur(total))}</b></div>
+      <div class="card open"><small>Offen</small><b>${esc(eur(total - paid))}</b></div>
+      <div class="card paid"><small>Bezahlt</small><b>${esc(eur(paid))}</b></div></div>
+    <div class="sec"><h3>Nach Kategorie <button id="payCats">⚙ Kategorien</button></h3>${catRows ? `<div class="rows">${catRows}</div>` : '<div class="empty">Keine Zahlungen in diesem Monat.</div>'}</div>
+    ${entries.length ? `<div class="sec"><h3>Alle Zahlungen im ${esc(MONS[m - 1])}</h3><div class="rows">${entries.map(e => rowHtml(e.t, e.d, esc(dShort(e.d)))).join('')}</div></div>` : ''}
+    ${undated.length ? `<div class="sec"><h3>Offen, ohne Datum</h3><div class="rows">${undated.map(t => rowHtml(t, todayStr())).join('')}</div></div>` : ''}`;
+}
+F('payCol').addEventListener('click', e => {
+  const mb = e.target.closest('[data-mon]');
+  if (mb) { const [y, m] = state.payMonth.split('-').map(Number); const d = new Date(y, m - 1 + +mb.dataset.mon, 1); state.payMonth = ymd(d).slice(0, 7); renderPay(); return; }
+  if (e.target.closest('#payNew')) { openTask(null, { amount: 0 }); return; }
+  if (e.target.closest('#payCats')) { openCats(); return; }
+  listClick(e);
+});
+
+/* ================= Ausgaben-Kategorien ================= */
+function catPills(container, name, selected, onPick) {
+  container.innerHTML = expcats.map(c => `<label class="pill"><input type="radio" name="${name}" value="${esc(c.id)}"${c.id === selected ? ' checked' : ''}><i class="dot" style="background:${esc(c.color)}"></i>${esc(c.name)}</label>`).join('')
+    + `<button type="button" class="pill add" data-newcat>＋ Neue Kategorie</button>`;
+  container.onchange = e => { if (e.target.name === name) onPick && onPick(e.target.value); };
+  container.onclick = async e => {
+    if (!e.target.closest('[data-newcat]')) return;
+    const nm = prompt('Name der neuen Kategorie:');
+    if (!nm || !nm.trim()) return;
+    const c = addExpcat(nm.trim());
+    catPills(container, name, c.id, onPick);
+    onPick && onPick(c.id);
+  };
+}
+function addExpcat(name, color) {
+  const exist = expcats.find(c => norm(c.name) === norm(name));
+  if (exist) return exist;
+  const c = { id: uid(), name, color: color || BRANCH[expcats.length % BRANCH.length] };
+  expcats.push(c);
+  persist({ render: false });
+  return c;
+}
+function openCats() {
+  F('menu').classList.add('hidden');
+  renderCats();
+  if (!F('catDialog').open) F('catDialog').showModal();
+}
+function renderCats() {
+  const used = id => tasks.filter(t => t.expcat === id).length;
+  F('catList').innerHTML = expcats.map(c => `<div class="crow" data-cat="${esc(c.id)}">
+      <input type="color" value="${esc(c.color)}" data-color aria-label="Farbe">
+      <input type="text" class="field" value="${esc(c.name)}" data-name aria-label="Name">
+      <small>${used(c.id) || ''}</small>
+      <button type="button" class="icon danger" data-delcat title="Löschen" aria-label="${esc(c.name)} löschen">🗑</button></div>`).join('')
+    || '<div class="hint">Noch keine Kategorien.</div>';
+}
+F('catList').addEventListener('change', e => {
+  const row = e.target.closest('[data-cat]');
+  const c = row && expcat(row.dataset.cat);
+  if (!c) return;
+  if (e.target.matches('[data-color]')) c.color = e.target.value;
+  if (e.target.matches('[data-name]') && e.target.value.trim()) c.name = e.target.value.trim();
+  persist();
+});
+F('catList').addEventListener('click', async e => {
+  if (!e.target.closest('[data-delcat]')) return;
+  const c = expcat(e.target.closest('[data-cat]').dataset.cat);
+  const users = tasks.filter(t => t.expcat === c.id);
+  if (users.length) {
+    const others = expcats.filter(x => x.id !== c.id);
+    const a = await ask('Kategorie löschen', `„${esc(c.name)}“ wird von <b>${users.length} Zahlung${users.length === 1 ? '' : 'en'}</b> verwendet. Wohin sollen sie?`
+      + `<select id="askMove" class="field" style="margin-top:10px"><option value="">Ohne Kategorie</option>${others.map(o => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join('')}</select>`,
+      [['yes', 'Löschen', 'danger'], ['no', 'Abbrechen']], () => F('askMove').value);
+    if (a.btn !== 'yes') return;
+    users.forEach(t => { t.expcat = a.val; t._touch = true; });
+  }
+  expcats = expcats.filter(x => x !== c);
+  persist();
+  renderCats();
+  refreshOpenCatPills();
+});
+F('newCatAdd').onclick = () => {
+  const nm = F('newCatName').value.trim();
+  if (!nm) return F('newCatName').focus();
+  addExpcat(nm, F('newCatColor').value);
+  F('newCatName').value = '';
+  F('newCatColor').value = BRANCH[expcats.length % BRANCH.length];
+  renderCats();
+  refreshOpenCatPills();
+  render();
+};
+F('newCatName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); F('newCatAdd').click(); } });
+F('catClose').onclick = () => { F('catDialog').close(); refreshOpenCatPills(); render(); };
+F('catsBtn').onclick = openCats;
+F('payBtn').onclick = () => { F('menu').classList.add('hidden'); setView('pay'); };
+function refreshOpenCatPills() {
+  if (F('taskDialog').open) catPills(F('tCats'), 'tcat', radioVal('tcat'), null);
+  if (F('pickDialog').open) renderPicker();
+}
+const radioVal = name => (document.querySelector(`input[name="${name}"]:checked`) || {}).value || '';
+
+// Nach Eingabe eines Betrags in der Mindmap öffnet sich sofort die Kategorie-Auswahl
+let pickFor = null;
+function openCatPicker(id) {
+  pickFor = id;
+  renderPicker();
+  F('pickDialog').showModal();
+}
+function renderPicker() {
+  const t = byId(pickFor);
+  if (!t) return;
+  F('pickHeading').textContent = `Art der Ausgabe · ${eur(t.amount)}`;
+  catPills(F('pickCats'), 'pcat', t.expcat, v => { t.expcat = v; t._touch = true; F('pickDialog').close(); persist(); });
+}
+F('pickSkip').onclick = () => F('pickDialog').close();
+F('pickManage').onclick = () => openCats();
+
+/* ================= Aufgaben-Dialog ================= */
+let dlg = null;   // { id | null, defaults }
+function openTask(id, defaults = {}) {
+  F('menu').classList.add('hidden');
+  const t = id ? byId(id) : null;
+  if (id && !t) return;
+  dlg = { id, defaults };
+  const v = t || { title: '', notes: '', parentId: defaults.parentId || null, date: defaults.date || '', time: '', endTime: '', endDate: '', repeat: { type: 'none' }, alarms: [], cal: true, amount: defaults.amount != null ? null : null, expcat: '', deps: [], prio: false };
+  F('tHeading').textContent = t ? (t.parentId ? 'Teilaufgabe bearbeiten' : 'Aufgabe bearbeiten') : (defaults.amount != null ? 'Neue Zahlung' : 'Neue Aufgabe');
+  F('tTitle').value = v.title;
+  F('tNotes').value = v.notes || '';
+  F('tDate').value = v.date || '';
+  F('tTime').value = v.time || '';
+  F('tEndTime').value = v.endTime || '';
+  F('tEndDate').value = v.endDate || '';
+  F('tCal').checked = v.cal !== false;
+  F('tPrio').checked = !!v.prio;
+  F('tAmount').value = amountText(v.amount);
+  // Oberthema: alle Aufgaben außer sich selbst und den eigenen Teilaufgaben
+  const excl = new Set(t ? [t.id, ...descendants(t.id).map(d => d.id)] : []);
+  const opts = ['<option value="">— Hauptaufgabe (kein Projekt) —</option>'];
+  (function walk(pid, depth) {
+    for (const k of kids(pid)) {
+      if (excl.has(k.id)) continue;
+      if (k.done && !isRec(k) && k.id !== v.parentId) continue;
+      opts.push(`<option value="${k.id}">${'  '.repeat(depth)}${depth ? '↳ ' : ''}${esc(k.title || '(ohne Titel)')}</option>`);
+      walk(k.id, depth + 1);
+    }
+  })(null, 0);
+  F('tParent').innerHTML = opts.join('');
+  F('tParent').value = v.parentId || '';
+  // Wiederholung
+  const r = v.repeat || { type: 'none' };
+  let rv = r.type || 'none', wds = [];
+  const startWd = v.date ? parseLocal(v.date).getDay() : new Date().getDay();
+  if (rv === 'weekly') { rv = 'weekdays'; wds = [startWd]; }
+  else if (rv === 'custom') {
+    if (r.freq === 'weekly' && (+r.interval || 1) === 1) { rv = 'weekdays'; wds = (r.weekdays || []).map(Number); }
+    else if (r.freq === 'daily' && (+r.interval || 1) === 1) rv = 'daily';
+    else rv = 'keep';
+  }
+  F('tRepeat').querySelector('[value=keep]').hidden = rv !== 'keep';
+  F('tRepeat').value = rv;
+  F('tWeekdays').innerHTML = [1, 2, 3, 4, 5, 6, 0].map(d => `<label class="pill"><input type="checkbox" value="${d}"${wds.includes(d) ? ' checked' : ''}>${WDS[d]}</label>`).join('');
+  F('tRepEnd').value = r.endType || 'never';
+  F('tUntil').value = r.until || '';
+  F('tCount').value = r.count || '';
+  F('tAlarms').innerHTML = ALARM_OPTS.map(([m, l]) => `<label class="pill"><input type="checkbox" value="${m}"${(v.alarms || []).includes(m) ? ' checked' : ''}>${l}</label>`).join('');
+  catPills(F('tCats'), 'tcat', v.expcat, null);
+  renderDeps(t, v.parentId || null);
+  const nk = t ? kids(t.id) : [];
+  F('tKids').textContent = nk.length ? `${nk.length} Teilaufgabe${nk.length === 1 ? '' : 'n'} (${nk.filter(k => doneOn(k, state.date)).length} erledigt) – in der Mindmap bearbeiten.` : '';
+  F('tDel').classList.toggle('hidden', !t);
+  F('tErr').classList.add('hidden');
+  syncTaskForm(false);
+  F('boxMulti').open = !!v.endDate;
+  F('boxRepeat').open = rv !== 'none';
+  F('boxAlarm').open = !!(v.alarms || []).length;
+  F('boxMoney').open = v.amount != null || defaults.amount != null;
+  F('tDepsBox').open = (v.deps || []).length > 0;
+  updateSummaries();
+  F('taskDialog').showModal();
+  if (!t && !matchMedia('(pointer: coarse)').matches) F('tTitle').focus();
+  if (defaults.amount != null && !t) F('tAmount').focus();
+}
+function renderDeps(t, parentId) {
+  const sibs = kids(parentId).filter(s => !t || s.id !== t.id);
+  F('tDepsBox').classList.toggle('hidden', !sibs.length);
+  const deps = new Set(t ? t.deps || [] : []);
+  F('tDeps').innerHTML = sibs.map((s, i) => {
+    const cyc = t && dependsOn(s, t.id);   // s wartet schon auf diese Aufgabe → Kreis vermeiden
+    return `<label class="${cyc ? 'dis' : ''}"><input type="checkbox" value="${s.id}"${deps.has(s.id) ? ' checked' : ''}${cyc ? ' disabled' : ''}>${i + 1}. ${esc(s.title || '(ohne Titel)')}${cyc ? ' <span class="hint">(wartet auf diese)</span>' : ''}</label>`;
+  }).join('');
+}
+// Sichtbarkeit der Felder: Kategorie erscheint nur, wenn ein Betrag eingetragen ist
+function syncTaskForm(animate = true) {
+  const hasDate = !!F('tDate').value;
+  const rep = F('tRepeat').value;
+  F('tWeekdays').classList.toggle('hidden', rep !== 'weekdays');
+  F('tRepEndWrap').classList.toggle('hidden', rep === 'none');
+  F('tRepEndVal').classList.toggle('hidden', rep === 'none' || F('tRepEnd').value === 'never');
+  F('tUntil').classList.toggle('hidden', F('tRepEnd').value !== 'until');
+  F('tCount').classList.toggle('hidden', F('tRepEnd').value !== 'count');
+  ['boxMulti', 'boxRepeat', 'boxAlarm', 'tCalWrap'].forEach(id => F(id).classList.toggle('hidden', !hasDate));
+  F('tTime').disabled = F('tEndTime').disabled = !hasDate;
+  updateSummaries();
+  const has = F('tAmount').value.trim() !== '';
+  const box = F('tCatBox'), was = !box.classList.contains('hidden');
+  box.classList.toggle('hidden', !has);
+  if (has && !was && animate) setTimeout(() => box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30);
+}
+function updateSummaries() {
+  const rep = F('tRepeat'), amt = F('tAmount').value.trim();
+  const cat = expcat(radioVal('tcat'));
+  const al = F('tAlarms').querySelectorAll(':checked').length;
+  F('sumMulti').textContent = F('tEndDate').value ? 'bis ' + dShort(F('tEndDate').value) : '';
+  F('sumRepeat').textContent = rep.value === 'none' ? '' : rep.options[rep.selectedIndex].text;
+  F('sumAlarm').textContent = al ? (al === 1 ? '1 Erinnerung' : al + ' Erinnerungen') : '';
+  F('sumMoney').textContent = amt ? amt + ' €' + (cat ? ' · ' + cat.name : '') : '';
+  const d = F('tDeps').querySelectorAll(':checked').length;
+  F('sumDeps').textContent = d ? 'wartet auf ' + d : '';
+}
+['tEndDate', 'tAlarms', 'tDeps', 'tCats', 'tWeekdays', 'tRepEnd', 'tUntil'].forEach(id => F(id).addEventListener('change', updateSummaries));
+['tDate', 'tRepeat', 'tRepEnd', 'tAmount'].forEach(id => F(id).addEventListener('input', () => syncTaskForm()));
+F('tRepeat').addEventListener('change', () => {
+  // Wochentage vorbelegen und ohne Datum mit heute beginnen
+  if (F('tRepeat').value !== 'none' && !F('tDate').value) F('tDate').value = todayStr();
+  if (F('tRepeat').value === 'weekdays' && !F('tWeekdays').querySelector(':checked')) {
+    const d = parseLocal(F('tDate').value || todayStr()).getDay();
+    F('tWeekdays').querySelector(`input[value="${d}"]`).checked = true;
+  }
+  syncTaskForm();
+});
+F('tParent').addEventListener('change', () => renderDeps(dlg.id ? byId(dlg.id) : null, F('tParent').value || null));
+F('tCatManage').onclick = () => openCats();
+F('tCancel').onclick = () => F('taskDialog').close();
+F('tDel').onclick = async () => { if (await deleteTask(dlg.id) !== false) F('taskDialog').close(); };
+
+function readTaskForm() {
+  const title = F('tTitle').value.trim();
+  if (!title) return { err: 'Bitte einen Titel eingeben.' };
+  const date = F('tDate').value, time = date ? F('tTime').value : '', endTime = date ? F('tEndTime').value : '';
+  let endDate = date ? F('tEndDate').value : '';
+  if (endDate && endDate <= date) endDate = endDate < date ? 'x' : '';
+  if (endDate === 'x') return { err: 'Das Enddatum liegt vor dem Datum.' };
+  if (endTime && !time) return { err: 'Bitte auch die Anfangszeit („Von“) angeben.' };
+  if (time && endTime && !endDate && endTime <= time) return { err: '„Bis“ muss nach „Von“ liegen (oder ein Enddatum wählen).' };
+  const amount = parseAmount(F('tAmount').value);
+  if (Number.isNaN(amount)) return { err: 'Der Betrag ist keine gültige Zahl (z. B. 49,90).' };
+  const rv = F('tRepeat').value;
+  let repeat = { type: 'none' };
+  if (rv !== 'none' && date) {
+    const endType = F('tRepEnd').value;
+    const base = { endType, until: endType === 'until' ? F('tUntil').value : '', count: endType === 'count' ? Math.max(1, +F('tCount').value || 1) : 0 };
+    if (endType === 'until' && !base.until) return { err: 'Bitte das Ende der Wiederholung angeben.' };
+    if (endType === 'until' && base.until < date) return { err: 'Das Ende der Wiederholung liegt vor dem Datum.' };
+    if (rv === 'weekdays') {
+      const wds = [...F('tWeekdays').querySelectorAll(':checked')].map(i => +i.value);
+      if (!wds.length) return { err: 'Bitte mindestens einen Wochentag wählen.' };
+      repeat = { type: 'custom', freq: 'weekly', interval: 1, weekdays: wds, ...base };
+    } else if (rv === 'keep') {
+      repeat = { ...byId(dlg.id).repeat, ...base };
+    } else repeat = { type: rv, ...base };
+  }
+  return {
+    data: {
+      title, notes: F('tNotes').value.trim(), parentId: F('tParent').value || null,
+      date, time, endTime, endDate, repeat,
+      alarms: date ? [...F('tAlarms').querySelectorAll(':checked')].map(i => +i.value).sort((a, b) => a - b) : [],
+      cal: F('tCal').checked, prio: F('tPrio').checked,
+      amount, expcat: amount != null ? radioVal('tcat') : '',
+      deps: [...F('tDeps').querySelectorAll(':checked')].map(i => i.value),
+    },
+  };
+}
+F('taskForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const { data, err } = readTaskForm();
+  if (err) { F('tErr').textContent = err; F('tErr').classList.remove('hidden'); return; }
+  let t;
+  if (dlg.id) {
+    t = byId(dlg.id);
+    if (!t) return F('taskDialog').close();
+    const moved = t.parentId !== data.parentId;
+    Object.assign(t, data);
+    if (moved) { const s = kids(data.parentId).filter(x => x !== t); t.order = s.length ? Math.max(...s.map(x => x.order ?? 0)) + 1 : 0; }
+    // Nach Änderung von Datum/Wiederholung passen alte Ausnahmen aus dem Kalender nicht mehr
+    t._touch = true;
+  } else {
+    t = newTask(data);
+  }
+  // Wiederholung geändert → erledigte Termine behalten, Ausnahmen verwerfen, wenn das Datum sich ändert
+  F('taskDialog').close();
+  persist();
+  if (data.amount != null && !data.expcat) toast('Tipp: Wähle eine Art der Ausgabe, damit die Zahlung in der Übersicht zugeordnet wird.');
+  else toast(dlg.id ? 'Gespeichert.' : (t.date ? `Aufgabe für ${esc(relDay(t.date))} angelegt.` : 'Aufgabe angelegt.'));
+});
+
+/* ================= Hilfsdialoge & Hinweise ================= */
+function ask(title, msg, buttons, getVal) {
+  return new Promise(resolve => {
+    F('askTitle').textContent = title;
+    F('askMsg').innerHTML = msg;
+    F('askBtns').innerHTML = buttons.map(([v, l, c]) => `<button type="button" data-v="${v}" class="${c || ''}">${esc(l)}</button>`).join('');
+    const d = F('askDialog');
+    let val;
+    F('askBtns').onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; val = b.dataset.v; const x = getVal ? getVal() : undefined; d.close(); resolve(getVal ? { btn: val, val: x } : val); };
+    d.onclose = () => { if (val === undefined) resolve(getVal ? { btn: 'cancel' } : 'cancel'); };
+    d.showModal();
+  });
+}
+function toast(html, opts = {}) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<span>${html}</span>${opts.action ? `<button>${esc(opts.action)}</button>` : ''}`;
+  if (opts.action) el.querySelector('button').onclick = () => { el.remove(); opts.onAction(); };
+  F('toasts').appendChild(el);
+  setTimeout(() => el.remove(), opts.action ? 7000 : 3500);
+}
+
+/* ================= Menü, Suche, Sicherung ================= */
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
+function updateCalInfo() {
+  let n = 0;
+  try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
+  F('calInfo').textContent = `📅 ${n} Kalendertermine gelesen (${MODE === 'server' ? 'Server' : 'dieser Browser'})`;
+}
+F('menuBtn').onclick = e => { updateCalInfo(); e.stopPropagation(); F('menu').classList.toggle('hidden'); if (!F('menu').classList.contains('hidden')) updateAccountInfo(); };
+document.addEventListener('click', e => { if (!e.target.closest('#menu, #menuBtn')) F('menu').classList.add('hidden'); });
+F('doneToggle').onclick = () => { state.showDone = !state.showDone; store.save('showDone', state.showDone); F('menu').classList.add('hidden'); render(); };
+let searchT;
+F('search').addEventListener('input', () => { clearTimeout(searchT); searchT = setTimeout(() => { state.search = F('search').value.trim(); render(); }, 150); });
+
+F('exportBtn').onclick = () => {
+  F('menu').classList.add('hidden');
+  const blob = new Blob([JSON.stringify({ app: 'dicaToDo', version: 1, exported: new Date().toISOString(), tasks, expcats }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `dicaToDo-${todayStr()}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+F('importBtn').onclick = () => { F('menu').classList.add('hidden'); F('importFile').click(); };
+F('importFile').onchange = async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!Array.isArray(d.tasks)) throw new Error();
+    const known = new Set(tasks.map(t => t.id));
+    const add = d.tasks.filter(t => t && t.id && !known.has(t.id));
+    const a = await ask('Wiederherstellen', `${d.tasks.length} Aufgaben in der Datei, davon <b>${add.length} neu</b>. Wie übernehmen?`,
+      [['merge', 'Neue hinzufügen', 'primary'], ['replace', 'Alles ersetzen', 'danger'], ['cancel', 'Abbrechen']]);
+    if (a === 'cancel') return;
+    if (a === 'replace') tasks = d.tasks; else tasks.push(...add);
+    if (Array.isArray(d.expcats)) {
+      const ids = new Set(expcats.map(c => c.id));
+      expcats = a === 'replace' ? d.expcats : [...expcats, ...d.expcats.filter(c => !ids.has(c.id))];
+    }
+    persist();
+    toast('Aufgaben wiederhergestellt.');
+  } catch { toast('Die Datei konnte nicht gelesen werden.'); }
+};
+
+/* ================= Server & Synchronisation ================= */
+// Am Server (unter /todo/ von dicaKalendar) teilen sich beide Apps Anmeldung und Synchronisation.
+const API = new URL('../api/', location.href).href;
+const sync = {
+  on: false, user: '',
+  rev: store.load('syncRev', 0),
+  snap: store.load('syncSnap', null),
+  outbox: store.load('syncOutbox', {}),
+  busy: false, again: false, timer: null, last: 0,
+};
+const syncPersist = () => { store.save('syncRev', sync.rev); store.save('syncSnap', sync.snap); store.save('syncOutbox', sync.outbox); };
+function syncTrack(kind, list) {
+  if (!sync.on || !sync.snap) return;
+  const prev = sync.snap[kind] || {}, cur = {};
+  for (const x of list) {
+    const j = JSON.stringify(x);
+    cur[x.id] = j;
+    if (prev[x.id] !== j) sync.outbox[kind + '|' + x.id] = { kind, id: x.id, data: x, deleted: false };
+  }
+  for (const id in prev) if (!(id in cur)) sync.outbox[kind + '|' + id] = { kind, id, deleted: true };
+  sync.snap[kind] = cur;
+  syncPersist();
+  queueSync();
+}
+function queueSync(delay = 400) {
+  if (!sync.on) return;
+  clearTimeout(sync.timer);
+  sync.timer = setTimeout(doSync, delay);
+}
+async function api(method, path, body) {
+  let res;
+  try {
+    res = await fetch(API + path, { method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+  } catch { const e = new Error('Keine Verbindung zum Server.'); e.network = true; throw e; }
+  let data = null;
+  try { data = await res.json(); } catch {}
+  if (!res.ok || !data) { const e = new Error((data && data.error) || `Fehler ${res.status}`); e.status = res.status; e.notApi = !data; throw e; }
+  return data;
+}
+const KINDS = 'task,expcat,apdone,event,category';
+function applyRemote(items) {
+  let changed = false;
+  for (const k of ['task', 'expcat', 'apdone']) if (!sync.snap[k]) sync.snap[k] = {};
+  for (const it of items) {
+    if (sync.outbox[it.kind + '|' + it.id]) continue;
+    if (it.kind === 'event') {
+      if (it.deleted) delete calServer.events[it.id]; else calServer.events[it.id] = it.data;
+      changed = true; continue;
+    }
+    if (it.kind === 'category') {
+      const i = calServer.cats.findIndex(c => c.id === it.id);
+      if (it.deleted) { if (i >= 0) calServer.cats.splice(i, 1); } else if (i >= 0) calServer.cats[i] = it.data; else calServer.cats.push(it.data);
+      continue;
+    }
+    const list = it.kind === 'task' ? tasks : it.kind === 'expcat' ? expcats : it.kind === 'apdone' ? apdone : null;
+    if (!list) continue;
+    const i = list.findIndex(x => x.id === it.id);
+    if (it.deleted) { if (i >= 0) list.splice(i, 1); delete sync.snap[it.kind][it.id]; }
+    else {
+      const j = JSON.stringify(it.data);
+      if (sync.snap[it.kind][it.id] === j && i >= 0) continue;
+      if (i >= 0) list[i] = it.data; else list.push(it.data);
+      sync.snap[it.kind][it.id] = j;
+    }
+    changed = true;
+  }
+  calServer.save();
+  if (changed) { store.save('tasks', tasks); store.save('expcats', expcats); store.save('apdone', apdone); }
+  return changed;
+}
+async function firstSync() {
+  const r = await api('GET', 'sync?since=0&kinds=' + KINDS);
+  const live = r.items.filter(x => !x.deleted);
+  const of = k => live.filter(x => x.kind === k).map(x => x.data);
+  const srvTasks = of('task'), srvCats = of('expcat');
+  sync.snap = { task: {}, expcat: {}, apdone: {} };
+  calServer.events = Object.fromEntries(of('event').map(e => [e.id, e]));
+  calServer.cats = of('category');
+  calServer.save();
+  if (srvTasks.length || srvCats.length) {
+    const ids = new Set(srvTasks.map(t => t.id));
+    const localOnly = tasks.filter(t => !ids.has(t.id));
+    for (const x of live) if (x.kind === 'task' || x.kind === 'expcat' || x.kind === 'apdone') sync.snap[x.kind][x.id] = JSON.stringify(x.data);
+    const ad = of('apdone'); const adIds = new Set(ad.map(x => x.id));
+    apdone = [...ad, ...apdone.filter(x => !adIds.has(x.id))];
+    tasks = [...srvTasks, ...localOnly];
+    const cids = new Set(srvCats.map(c => c.id));
+    expcats = srvCats.length ? [...srvCats, ...expcats.filter(c => !cids.has(c.id) && tasks.some(t => t.expcat === c.id))] : expcats;
+    if (localOnly.length) toast(`${localOnly.length} Aufgaben von diesem Gerät werden zusätzlich hochgeladen.`);
+  }
+  sync.rev = r.rev;
+  persist({ render: false });   // Unterschiede in den Postausgang, Kalender abgleichen
+}
+async function doSync() {
+  if (!sync.on) return;
+  if (sync.busy) { sync.again = true; return; }
+  sync.busy = true;
+  setSyncStatus('busy');
+  try {
+    if (!sync.snap) await firstSync();
+    if (!store.load('calAllV', 0)) {
+      const all = await api('GET', 'sync?since=0&kinds=event,category');
+      for (const it of all.items) {
+        if (it.deleted) continue;
+        if (it.kind === 'event' && !sync.outbox['event|' + it.id]) calServer.events[it.id] = it.data;
+        if (it.kind === 'category' && !calServer.cats.some(c => c.id === it.id)) calServer.cats.push(it.data);
+      }
+      calServer.save();
+      store.save('calAllV', 1);
+    }
+    const changes = Object.values(sync.outbox);
+    if (changes.length) {
+      await api('POST', 'sync', { changes });
+      for (const c of changes) if (sync.outbox[c.kind + '|' + c.id] === c) delete sync.outbox[c.kind + '|' + c.id];
+    }
+    const r = await api('GET', `sync?since=${sync.rev}&kinds=${KINDS}`);
+    const changed = applyRemote(r.items);
+    sync.rev = r.rev;
+    sync.last = Date.now();
+    syncPersist();
+    if (changed) {
+      reconcileCal();
+      syncTrack('task', tasks);
+      if (!document.querySelector('dialog[open]') && !state.editing) render();
+    }
+    setSyncStatus(Object.keys(sync.outbox).length ? 'busy' : 'ok');
+    if (Object.keys(sync.outbox).length) sync.again = true;
+  } catch (e) {
+    syncPersist();
+    if (e.status === 401) { sync.on = false; showAuth(); }
+    setSyncStatus('off', e.message);
+  } finally {
+    sync.busy = false;
+    if (sync.again) { sync.again = false; queueSync(100); }
+  }
+}
+function setSyncStatus(s, detail) {
+  const el = F('syncState');
+  el.className = 'syncstate ' + s;
+  el.textContent = { ok: '☁ synchron', busy: '⟳ …', off: '⚠ offline' }[s];
+  el.title = detail || { ok: 'Alle Änderungen sind auf dem Server und im dicaKalendar.', busy: 'Synchronisiere …', off: 'Keine Verbindung – Änderungen werden später übertragen.' }[s];
+}
+function updateAccountInfo() {
+  if (!sync.on && MODE !== 'server') return;
+  const pending = Object.keys(sync.outbox).length;
+  F('accountInfo').innerHTML = `Angemeldet als <b>${esc(sync.user)}</b> (gleiches Konto wie dicaKalendar)<br>`
+    + (sync.last ? `Zuletzt synchronisiert: ${new Date(sync.last).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'Noch nicht synchronisiert')
+    + (pending ? `<br>${pending} Änderung${pending === 1 ? '' : 'en'} warten auf Übertragung` : '');
+}
+function resetLocalData() {
+  ['apdone', 'calAllV', 'tasks', 'expcats', 'syncRev', 'syncSnap', 'syncOutbox', 'calEvents', 'calCats', 'calSnap', 'collapsed'].forEach(store.del);
+  tasks = []; apdone = []; expcats = DEFAULT_EXPCATS.map(c => ({ ...c })); calSnap = {}; collapsed = new Set();
+  calServer.events = {}; calServer.cats = [];
+  sync.rev = 0; sync.snap = null; sync.outbox = {};
+}
+function startSync(user) {
+  const prev = store.load('syncUser', '');
+  if (prev && prev.toLowerCase() !== user.username.toLowerCase()) { resetLocalData(); render(); }
+  sync.on = true;
+  sync.user = user.username;
+  store.save('syncUser', user.username);
+  F('accountBox').classList.remove('hidden');
+  doSync();
+}
+function showAuth(setup) {
+  F('authSetup').classList.toggle('hidden', !setup);
+  F('authScreen').classList.remove('hidden');
+  setTimeout(() => F('authUser').focus(), 50);
+}
+F('authForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  F('authSubmit').disabled = true;
+  try {
+    const r = await api('POST', 'login', { username: F('authUser').value.trim(), password: F('authPw').value });
+    F('authPw').value = '';
+    F('authScreen').classList.add('hidden');
+    startSync(r.user);
+  } catch (ex) {
+    F('authErr').textContent = ex.message; F('authErr').classList.remove('hidden');
+  } finally { F('authSubmit').disabled = false; }
+});
+F('syncNowBtn').onclick = () => { F('menu').classList.add('hidden'); doSync(); };
+F('logoutBtn').onclick = async () => {
+  F('menu').classList.add('hidden');
+  const pending = Object.keys(sync.outbox).length;
+  const a = await ask('Abmelden', (pending ? `Achtung: ${pending} Änderungen sind noch nicht auf dem Server. ` : '')
+    + 'Du wirst in dicaToDo <b>und</b> dicaKalendar abgemeldet. Die Aufgaben werden von diesem Gerät entfernt, auf dem Server bleiben sie erhalten.',
+    [['yes', 'Abmelden', 'danger'], ['cancel', 'Abbrechen']]);
+  if (a !== 'yes') return;
+  try { await api('POST', 'logout'); } catch {}
+  resetLocalData(); store.del('syncUser');
+  location.reload();
+};
+
+// Klick neben ein Fenster schließt es
+document.querySelectorAll('dialog').forEach(d => {
+  let downOnBackdrop = false;
+  d.addEventListener('pointerdown', e => { downOnBackdrop = e.target === d; });
+  d.addEventListener('click', e => { if (e.target === d && downOnBackdrop) d.close(); });
+});
+
+/* ================= Start ================= */
+const ONLINE_URL = 'https://kalendar.dicakultur.com/todo/';
+function initLocal() {
+  MODE = 'local';
+  F('calLink').href = '../dicaKalendar/index.html';
+  F('localbar').innerHTML = `<span>⚠️ <b>Lokale Version</b> – Aufgaben erscheinen im lokalen dicaKalendar dieses Browsers, aber <b>nicht</b> auf dem Handy.</span><a href="${ONLINE_URL}">Zur Online-Version →</a>`;
+  F('localbar').classList.remove('hidden');
+  // Änderungen im (lokal) geöffneten dicaKalendar übernehmen
+  window.addEventListener('storage', e => {
+    if (e.key === 'dicaKalender.events' && !state.editing) { if (reconcileCal()) persist(); else render(); }
+    if (e.key === 'dicaToDo.tasks' && !state.editing) { tasks = store.load('tasks', []); render(); }
+  });
+  persist();
+}
+async function init() {
+  if (typeof occurrences === 'undefined') {
+    document.body.innerHTML = '<p style="padding:20px">dicaToDo braucht die Datei <b>recurrence.js</b> von dicaKalendar. Bitte dicaToDo neben dem Ordner <b>dicaKalendar</b> ablegen.</p>';
+    return;
+  }
+  render();
+  if (!/^https?:$/.test(location.protocol)) return initLocal();
+  try {
+    const me = await api('GET', 'me');
+    MODE = 'server';
+    F('calLink').href = '../';
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    if (me.setupNeeded) return showAuth(true);
+    startSync(me.user);
+  } catch (e) {
+    if (e.status === 401 && !e.notApi) { MODE = 'server'; F('calLink').href = '../'; return showAuth(false); }
+    const known = store.load('syncUser', '');
+    if (e.network && known) {   // offline: mit den Daten auf dem Gerät weiterarbeiten
+      MODE = 'server'; F('calLink').href = '../';
+      sync.on = true; sync.user = known; F('accountBox').classList.remove('hidden'); setSyncStatus('off');
+      return;
+    }
+    initLocal();
+  }
+}
+window.addEventListener('online', () => queueSync(100));
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { queueSync(100);  } });
+setInterval(() => { if (!document.hidden) queueSync(0); }, 60e3);
+let resizeT;
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (state.view === 'map' && !state.editing) renderMap(); }, 150); });
+init();
+</script>
+</body>
+</html>
