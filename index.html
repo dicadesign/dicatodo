@@ -1055,7 +1055,7 @@ function renderMap() {
   // Seitenklassen korrigieren (Aufklapp-Knopf innen/außen)
   flat.forEach(n => { if (!n.center) { n.el.classList.toggle('r', n.side > 0); n.el.classList.toggle('l', n.side < 0); } });
 
-  const PAD = 60, PADB = 110;
+  const PAD = 60, PADB = oneSided ? 110 : 60;   // Handy: unten Platz für die Aktionsleiste; Computer: gleichmäßig, damit die Mitte stimmt
   const minX = Math.min(...flat.map(n => n.x)) - PAD - 30, maxX = Math.max(...flat.map(n => n.x + n.w)) + PAD + 30;
   const minY = Math.min(...flat.map(n => n.y)) - PAD, maxY = Math.max(...flat.map(n => n.y + n.h)) + PADB;
   const W = maxX - minX, H = maxY - minY;
@@ -1098,8 +1098,13 @@ function renderMap() {
   if (state.recenter) {
     state.recenter = false;
     const z = state.zoom;
-    wrap.scrollLeft = oneSided ? Math.max(0, mapLayout.cLeft * z - 12) : mapLayout.cx * z - wrap.clientWidth / 2;
-    wrap.scrollTop = mapLayout.cy * z - wrap.clientHeight / 2 + 30;
+    if (oneSided) {
+      wrap.scrollLeft = Math.max(0, mapLayout.cLeft * z - 12);
+      wrap.scrollTop = mapLayout.cy * z - wrap.clientHeight / 2 + 30;
+    } else {   // Computer: passt alles ins Fenster, sitzt es schon mittig; sonst auf die Mitte (Datum) zentrieren
+      wrap.scrollLeft = mapLayout.W * z > wrap.clientWidth ? mapLayout.cx * z - wrap.clientWidth / 2 : 0;
+      wrap.scrollTop = mapLayout.H * z > wrap.clientHeight ? mapLayout.cy * z - wrap.clientHeight / 2 + 30 : 0;
+    }
   }
 
   const empty = F('mapEmpty');
@@ -1123,20 +1128,25 @@ function renderMap() {
 
 function applyZoom() {
   if (!mapLayout) return;
-  const z = state.zoom;
-  F('mapStage').style.transform = `scale(${z})`;
-  F('mapSizer').style.width = mapLayout.W * z + 'px';
-  F('mapSizer').style.height = mapLayout.H * z + 'px';
+  const z = state.zoom, wrap = F('mapWrap');
+  const sw = mapLayout.W * z, sh = mapLayout.H * z;
+  // Am Computer: ist die Mindmap kleiner als das Fenster, liegt sie in der Mitte; auf dem Handy oben links
+  const ox = mapLayout.oneSided ? 0 : Math.max(0, (wrap.clientWidth - sw) / 2);
+  const oy = mapLayout.oneSided ? 0 : Math.max(0, (wrap.clientHeight - sh) / 2);
+  mapLayout.ox = ox; mapLayout.oy = oy;
+  F('mapStage').style.transform = `translate(${ox}px, ${oy}px) scale(${z})`;
+  F('mapSizer').style.width = sw + ox * 2 + 'px';
+  F('mapSizer').style.height = sh + oy * 2 + 'px';
 }
 function setZoom(z, cx, cy) {
   const wrap = F('mapWrap'), r = wrap.getBoundingClientRect();
   z = Math.min(1.8, Math.max(0.35, z));
   const ax = cx == null ? r.width / 2 : cx - r.left, ay = cy == null ? r.height / 2 : cy - r.top;
-  const px = (wrap.scrollLeft + ax) / state.zoom, py = (wrap.scrollTop + ay) / state.zoom;
+  const px = (wrap.scrollLeft + ax - mapLayout.ox) / state.zoom, py = (wrap.scrollTop + ay - mapLayout.oy) / state.zoom;
   state.zoom = z;
   applyZoom();
-  wrap.scrollLeft = px * z - ax;
-  wrap.scrollTop = py * z - ay;
+  wrap.scrollLeft = px * z + mapLayout.ox - ax;
+  wrap.scrollTop = py * z + mapLayout.oy - ay;
 }
 function zoomFit() {
   if (!mapLayout) return;
@@ -1960,7 +1970,7 @@ function toast(html, opts = {}) {
 
 /* ================= Menü, Suche, Sicherung ================= */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
-const BUILD = '29.09.-l';
+const BUILD = '29.09.-m';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
