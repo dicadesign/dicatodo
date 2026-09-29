@@ -428,9 +428,10 @@
     <label class="f">Titel
       <input id="tTitle" autocomplete="off" placeholder="z. B. Miete überweisen">
     </label>
-    <label class="f">Gehört zu
-      <select id="tParent"></select>
-    </label>
+    <details class="sect" id="boxParent">
+      <summary>Gehört zu <span class="sum" id="sumParent"></span></summary>
+      <select id="tParent" class="field" aria-label="Gehört zu"></select>
+    </details>
 
     <details class="sect" id="boxWhen">
       <summary>Wann <span class="sum" id="sumWhen"></span></summary>
@@ -1842,6 +1843,7 @@ function updateSummaries() {
   const al = F('tAlarms').querySelectorAll(':checked').length;
   const dt = F('tDate').value, tm = F('tTime').value, te = F('tEndTime').value;
   F('sumWhen').textContent = dt ? dShort(dt) + (tm ? ', ' + tm + (te ? '–' + te : '') : '') : '';
+  { const sel = F('tParent'), o = sel.options[sel.selectedIndex]; F('sumParent').textContent = sel.value && o ? o.textContent.replace(/^[\s↳]+/, '') : 'Hauptaufgabe'; }
   F('sumMulti').textContent = F('tEndDate').value ? 'bis ' + dShort(F('tEndDate').value) : '';
   F('sumRepeat').textContent = rep.value === 'none' ? '' : rep.options[rep.selectedIndex].text;
   F('sumAlarm').textContent = al ? (al === 1 ? '1 Erinnerung' : al + ' Erinnerungen') : '';
@@ -1849,7 +1851,7 @@ function updateSummaries() {
   const d = F('tDeps').querySelectorAll(':checked').length;
   F('sumDeps').textContent = d ? 'wartet auf ' + d : '';
 }
-['tDate', 'tTime', 'tEndTime', 'tEndDate', 'tAlarms', 'tDeps', 'tCats', 'tWeekdays', 'tRepEnd', 'tUntil'].forEach(id => F(id).addEventListener('change', updateSummaries));
+['tParent', 'tDate', 'tTime', 'tEndTime', 'tEndDate', 'tAlarms', 'tDeps', 'tCats', 'tWeekdays', 'tRepEnd', 'tUntil'].forEach(id => F(id).addEventListener('change', updateSummaries));
 ['tDate', 'tRepeat', 'tRepEnd', 'tAmount'].forEach(id => F(id).addEventListener('input', () => syncTaskForm()));
 F('tRepeat').addEventListener('change', () => {
   // Wochentage vorbelegen und ohne Datum mit heute beginnen
@@ -1954,7 +1956,7 @@ function toast(html, opts = {}) {
 
 /* ================= Menü, Suche, Sicherung ================= */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
-const BUILD = '29.09.-j';
+const BUILD = '29.09.-k';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
