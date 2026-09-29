@@ -432,15 +432,15 @@
       <select id="tParent"></select>
     </label>
 
-    <fieldset class="box">
-      <legend>Wann</legend>
+    <details class="sect" id="boxWhen">
+      <summary>Wann <span class="sum" id="sumWhen"></span></summary>
       <div class="grid3">
         <label class="f">Datum <input type="date" id="tDate"></label>
         <label class="f">Von <input type="time" id="tTime"></label>
         <label class="f">Bis <input type="time" id="tEndTime"></label>
       </div>
       <label class="check" id="tCalWrap"><input type="checkbox" id="tCal"> Im dicaKalendar anzeigen</label>
-    </fieldset>
+    </details>
 
     <details class="sect" id="boxMulti">
       <summary>Mehrtägig <span class="sum" id="sumMulti"></span></summary>
@@ -1799,6 +1799,7 @@ function openTask(id, defaults = {}) {
   F('tDel').classList.toggle('hidden', !t);
   F('tErr').classList.add('hidden');
   syncTaskForm(false);
+  F('boxWhen').open = !v.date;   // ohne Datum: offen zum Eintragen, sonst zugeklappt mit Zusammenfassung
   F('boxMulti').open = !!v.endDate;
   F('boxRepeat').open = rv !== 'none';
   F('boxAlarm').open = !!(v.alarms || []).length;
@@ -1839,6 +1840,8 @@ function updateSummaries() {
   const rep = F('tRepeat'), amt = F('tAmount').value.trim();
   const cat = expcat(radioVal('tcat'));
   const al = F('tAlarms').querySelectorAll(':checked').length;
+  const dt = F('tDate').value, tm = F('tTime').value, te = F('tEndTime').value;
+  F('sumWhen').textContent = dt ? dShort(dt) + (tm ? ', ' + tm + (te ? '–' + te : '') : '') : '';
   F('sumMulti').textContent = F('tEndDate').value ? 'bis ' + dShort(F('tEndDate').value) : '';
   F('sumRepeat').textContent = rep.value === 'none' ? '' : rep.options[rep.selectedIndex].text;
   F('sumAlarm').textContent = al ? (al === 1 ? '1 Erinnerung' : al + ' Erinnerungen') : '';
@@ -1846,7 +1849,7 @@ function updateSummaries() {
   const d = F('tDeps').querySelectorAll(':checked').length;
   F('sumDeps').textContent = d ? 'wartet auf ' + d : '';
 }
-['tEndDate', 'tAlarms', 'tDeps', 'tCats', 'tWeekdays', 'tRepEnd', 'tUntil'].forEach(id => F(id).addEventListener('change', updateSummaries));
+['tDate', 'tTime', 'tEndTime', 'tEndDate', 'tAlarms', 'tDeps', 'tCats', 'tWeekdays', 'tRepEnd', 'tUntil'].forEach(id => F(id).addEventListener('change', updateSummaries));
 ['tDate', 'tRepeat', 'tRepEnd', 'tAmount'].forEach(id => F(id).addEventListener('input', () => syncTaskForm()));
 F('tRepeat').addEventListener('change', () => {
   // Wochentage vorbelegen und ohne Datum mit heute beginnen
@@ -1902,7 +1905,12 @@ function readTaskForm() {
 F('taskForm').addEventListener('submit', e => {
   e.preventDefault();
   const { data, err } = readTaskForm();
-  if (err) { F('tErr').textContent = err; F('tErr').classList.remove('hidden'); return; }
+  if (err) {
+    F('tErr').textContent = err; F('tErr').classList.remove('hidden');
+    if (/Datum|Enddatum|Von|Bis/.test(err) && !/Wiederholung/.test(err)) F('boxWhen').open = true;
+    else if (/Wiederholung|Wochentag/.test(err)) F('boxRepeat').open = true;
+    return;
+  }
   let t;
   if (dlg.id) {
     t = byId(dlg.id);
@@ -1946,7 +1954,7 @@ function toast(html, opts = {}) {
 
 /* ================= Menü, Suche, Sicherung ================= */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
-const BUILD = '29.09.-i';
+const BUILD = '29.09.-j';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
