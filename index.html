@@ -2087,7 +2087,8 @@ async function doSync() {
   sync.busy = true;
   setSyncStatus('busy');
   try {
-    if (!sync.snap) await firstSync();
+    let fresh = false;
+    if (!sync.snap) { await firstSync(); fresh = true; }
     if (!store.load('calAllV', 0)) {
       const all = await api('GET', 'sync?since=0&kinds=event,category');
       for (const it of all.items) {
@@ -2097,6 +2098,7 @@ async function doSync() {
       }
       calServer.save();
       store.save('calAllV', 1);
+      fresh = true;
     }
     const changes = Object.values(sync.outbox);
     if (changes.length) {
@@ -2108,7 +2110,7 @@ async function doSync() {
     sync.rev = r.rev;
     sync.last = Date.now();
     syncPersist();
-    if (changed) {
+    if (changed || fresh) {
       reconcileCal();
       syncTrack('task', tasks);
       if (!document.querySelector('dialog[open]') && !state.editing) render();
