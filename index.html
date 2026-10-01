@@ -228,6 +228,12 @@
   .trow { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-top: 1px solid var(--line); cursor: pointer; }
   .trow:first-child { border-top: 0; }
   .trow:hover { background: var(--surface-2); }
+  .trow { border-left: 4px solid var(--c, var(--line)); }
+  .trow .rt { font-weight: 600; overflow-wrap: anywhere; }
+  .trow .rs .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
+  .rdel { border: 0; background: transparent; padding: 2px 6px; font-size: 15px; opacity: .45; align-self: center; flex: 0 0 auto; }
+  .rdel:hover { opacity: 1; background: var(--surface-2); }
+  .trow.kalrow .chk { border-color: var(--c); }
   .trow .chk { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--c, var(--accent)); padding: 0; background: transparent; flex: 0 0 auto; margin-top: 1px; display: grid; place-items: center; font-size: 12px; }
   .trow.done .chk { background: var(--c, var(--accent)); color: #fff; }
   .trow.done .rt { text-decoration: line-through; color: var(--muted); }
@@ -306,6 +312,7 @@
   fieldset.box legend { font-size: 13px; font-weight: 700; color: var(--muted); padding: 0 4px; }
   details.sect { border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; }
   details.sect[open] { padding-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .stack { display: flex; flex-direction: column; gap: 10px; }
   details.sect > summary { cursor: pointer; padding: 10px 0; font-size: 13.5px; font-weight: 700; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 8px; }
   details.sect[open] > summary { padding-bottom: 0; }
   details.sect > summary::-webkit-details-marker { display: none; }
@@ -339,6 +346,7 @@
 
   /* ---------- Handy ---------- */
   @media (max-width: 760px) {
+    .nodebar { flex-wrap: wrap; justify-content: center; overflow: visible; width: calc(100% - 16px); }
     .topbar { flex-wrap: wrap; gap: 8px; padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
     .search { width: 100%; order: 6; }
     .nav { gap: 4px; }
@@ -371,6 +379,7 @@
   <div class="spacer"></div>
   <input id="search" class="search" type="search" placeholder="Aufgaben suchen …" autocomplete="off">
   <div class="topbtns">
+    <button id="addBtn" class="icon primary" title="Neue Aufgabe" aria-label="Neue Aufgabe">＋</button>
     <a id="calLink" class="icon" title="dicaKalendar öffnen" aria-label="dicaKalendar öffnen">📅</a>
     <button id="menuBtn" class="icon" title="Menü" aria-label="Menü">⋯</button>
     <div id="menu" class="menu hidden">
@@ -428,19 +437,26 @@
     <label class="f">Titel
       <input id="tTitle" autocomplete="off" placeholder="z. B. Miete überweisen">
     </label>
-    <details class="sect" id="boxParent">
-      <summary>Gehört zu <span class="sum" id="sumParent"></span></summary>
-      <select id="tParent" class="field" aria-label="Gehört zu"></select>
+    <details class="sect" id="boxCat">
+      <summary>Kategorie <span class="sum" id="sumCat"></span></summary>
+      <div class="pills" id="tKats"></div>
+      <div class="hint">Die Kategorien kommen aus dicaKalendar.</div>
     </details>
 
     <details class="sect" id="boxWhen">
-      <summary>Wann <span class="sum" id="sumWhen"></span></summary>
+      <summary>Wann &amp; Erinnerung <span class="sum" id="sumWhen"></span></summary>
       <div class="grid3">
         <label class="f">Datum <input type="date" id="tDate"></label>
         <label class="f">Von <input type="time" id="tTime"></label>
         <label class="f">Bis <input type="time" id="tEndTime"></label>
       </div>
       <label class="check" id="tCalWrap"><input type="checkbox" id="tCal"> Im dicaKalendar anzeigen</label>
+      <div id="tWhenExtra" class="stack">
+        <div class="f">Erinnerung</div>
+        <div class="pills" id="tAlarms"></div>
+        <label class="check"><input type="checkbox" id="tNag"> Täglich erinnern, bis erledigt (längstens bis Monatsende)</label>
+        <div class="hint">Push-Benachrichtigung über dicaKalendar. Nach dem Fälligkeitstag kommt die Meldung jeden Tag erneut, bis du die Aufgabe abhakst. Am Monatsende hört das Erinnern auf, die Aufgabe bleibt offen.</div>
+      </div>
     </details>
 
     <details class="sect" id="boxMulti">
@@ -479,13 +495,6 @@
         <input type="date" id="tUntil" class="field">
         <input type="number" id="tCount" class="field" min="1" max="999" placeholder="Anzahl">
       </div>
-    </details>
-
-    <details class="sect" id="boxAlarm">
-      <summary>Erinnerung <span class="sum" id="sumAlarm"></span></summary>
-      <div class="pills" id="tAlarms"></div>
-      <label class="check"><input type="checkbox" id="tNag"> Täglich erinnern, bis erledigt (längstens bis Monatsende)</label>
-      <div class="hint">Push-Benachrichtigung über dicaKalendar. Nach dem Fälligkeitstag kommt die Meldung jeden Tag erneut, bis du die Aufgabe abhakst. Am Monatsende hört das Erinnern auf, die Aufgabe bleibt offen.</div>
     </details>
 
     <details class="sect" id="boxMoney">
@@ -653,7 +662,7 @@ function newTask(fields) {
   const t = {
     id: uid(), parentId: null, title: '', notes: '', order: 0, done: false, doneAt: 0, doneDates: [],
     date: '', time: '', endTime: '', endDate: '', repeat: { type: 'none' }, alarms: [], cal: true,
-    amount: null, expcat: '', deps: [], prio: false, nag: false, calExceptions: [], created: Date.now(), updated: Date.now(),
+    amount: null, expcat: '', category: '', deps: [], prio: false, nag: false, calExceptions: [], created: Date.now(), updated: Date.now(),
     ...fields,
   };
   const sib = kids(t.parentId);
@@ -788,7 +797,7 @@ function toEvent(t) {
   notes.push('— aus dicaToDo');
   return {
     id: calId(t), title: (done ? '✓ ' : '☐ ') + t.title, allDay: ev.allDay, start: ev.start, end: ev.end,
-    category: t.amount != null ? KAL_CATS.pay.id : KAL_CATS.task.id, with: '', location: '', notes: notes.join('\n'),
+    category: kcat(t.category) ? t.category : (t.amount != null ? KAL_CATS.pay.id : KAL_CATS.task.id), with: '', location: '', notes: notes.join('\n'),
     repeat: t.repeat || { type: 'none' }, alarms: done ? [] : [...(t.alarms || [])], exceptions: [...(t.calExceptions || [])], todo: t.id,
   };
 }
@@ -805,6 +814,7 @@ function adopt(t, ev) {
     t.endDate = e.slice(0, 10) > t.date ? e.slice(0, 10) : '';
   }
   t.repeat = ev.repeat || { type: 'none' };
+  t.category = (ev.category === KAL_CATS.task.id || ev.category === KAL_CATS.pay.id) ? '' : (ev.category || '');
   if (!(!isRec(t) && t.done)) t.alarms = Array.isArray(ev.alarms) ? ev.alarms : [];
   t.calExceptions = ev.exceptions || [];
   if (JSON.stringify(t) !== before) t.updated = Date.now();
@@ -873,6 +883,12 @@ function calAppointments(D) {
   return out.sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start));
 }
 const apTime = a => a.allDay ? 'ganztägig' : (sameDay(a.start, a.end) || +a.end === +a.start ? `${hm(a.start)}${+a.end > +a.start ? '–' + hm(a.end) : ''}` : `${hm(a.start)} → ${dShort(ymd(a.end))}`);
+
+// Kategorien von dicaKalendar (für Aufgaben und Termine)
+const kalCats = () => MODE === 'server' ? calServer.cats : (calLocal.read().cats || KAL_DEFAULT_CATS);
+const pickableCats = () => kalCats().filter(c => c.id !== KAL_CATS.task.id && c.id !== KAL_CATS.pay.id);
+const kcat = id => id ? (pickableCats().find(c => c.id === id) || null) : null;
+const kcolor = t => (kcat(t.category) || {}).color || null;
 
 function reconcileCal() {
   if (MODE === 'server' && !sync.snap) return;   // erst nach dem ersten Abgleich mit dem Server
@@ -951,7 +967,7 @@ function buildNode(t, depth, D, color) {
   const st = stagesOf(all);
   const n = { t, depth, color, nKids: all.length, children: [] };
   if (!collapsed.has(t.id) || shown.some(c => c.id === ed)) {
-    n.children = shown.map(c => { const cn = buildNode(c, depth + 1, D, color); cn.stage = st && st[c.id]; return cn; });
+    n.children = shown.map(c => { const cn = buildNode(c, depth + 1, D, kcolor(c) || color); cn.stage = st && st[c.id]; return cn; });
   }
   n.folded = !!all.length && !n.children.length && collapsed.has(t.id);
   return n;
@@ -981,6 +997,7 @@ function nodeHtml(n, D) {
   const editing = state.editing && state.editing.id === t.id;
   const chips = [];
   if (t.prio) chips.push('<span class="chip">★</span>');
+  { const kc = kcat(t.category); if (kc) chips.push(`<span class="chip"><i class="dot" style="background:${esc(kc.color)}"></i>${esc(kc.name)}</span>`); }
   if (isOverdue(t)) chips.push(`<span class="chip late">überfällig · ${esc(dShort(t.date))}</span>`);
   else if (t.nag && D && occOn(t, D) && occOn(t, D) < D && !done) chips.push(`<span class="chip late">fällig seit ${esc(dShort(occOn(t, D)))}</span>`);
   else if (t.date && D !== t.date && !occOn(t, D)) chips.push(`<span class="chip">📅 ${esc(dShort(nextDue(t) || t.date))}</span>`);
@@ -1023,7 +1040,7 @@ function renderMap() {
   const roots = mapRoots(D);
   const oneSided = wrap.clientWidth < 720;
   const aps = calAppointments(D);
-  const center = { center: true, depth: 0, children: roots.map((t, i) => buildNode(t, 1, D, BRANCH[i % BRANCH.length])) };
+  const center = { center: true, depth: 0, children: roots.map((t, i) => buildNode(t, 1, D, kcolor(t) || BRANCH[i % BRANCH.length])) };
   if (aps.length) {
     const head = { t: { id: 'kal' }, kal: 'head', depth: 1, color: '#5b6572', nKids: aps.length, count: aps.length, children: [], allDone: aps.every(a => apIsDone(a.id)) };
     head.folded = collapsed.has('kal');
@@ -1545,21 +1562,22 @@ F('datePick').onchange = e => { if (e.target.value) goDate(e.target.value); };
 /* ================= Liste ================= */
 function rowHtml(t, D, extra = '', depth = 0, noPath = false) {
   const done = doneOn(t, D);
-  const c = expcat(t.expcat);
+  const c = expcat(t.expcat), kc = kcat(t.category);
   const sub = [];
   const p = noPath ? '' : pathOf(t);
   if (p) sub.push(`↳ ${esc(p)}`);
   if (extra) sub.push(extra);
-  if (t.time) sub.push('🕑 ' + esc(timeText(t)));
   if (isRec(t)) sub.push('↻');
   const pr = progress(t, D);
   if (pr) sub.push(`${pr.done}/${pr.all} Teilaufgaben`);
   const blk = blockers(t, D);
   if (blk.length && !done) sub.push('🔒 wartet auf ' + esc(blk.map(b => b.title).join(', ')));
   if (t.amount != null) sub.push(`<span class="amt">${esc(eur(t.amount))}</span>${c ? ' · ' + esc(c.name) : ''}`);
-  return `<div class="trow${done ? ' done' : ''}" data-open="${t.id}" style="--c:${c ? esc(c.color) : 'var(--accent)'}${depth ? `;padding-left:${12 + depth * 22}px` : ''}">
+  const top = [t.time ? esc(timeText(t)) : '', kc ? `<i class="dot" style="background:${esc(kc.color)}"></i>${esc(kc.name)}` : ''].filter(Boolean).join(' · ');
+  return `<div class="trow${done ? ' done' : ''}" data-open="${t.id}" style="--c:${kc ? esc(kc.color) : 'var(--line)'}${depth ? `;padding-left:${12 + depth * 22}px` : ''}">
     <button class="chk" data-chk="${t.id}" data-d="${D || ''}" aria-label="erledigt">${done ? '✓' : ''}</button>
-    <div class="rm"><div class="rt">${t.prio ? '★ ' : ''}${esc(t.title) || '<i class="muted">(ohne Titel)</i>'}</div>${sub.length ? `<div class="rs">${sub.join(' · ')}</div>` : ''}</div></div>`;
+    <div class="rm">${top ? `<div class="rs">${top}</div>` : ''}<div class="rt">${t.prio ? '★ ' : ''}${esc(t.title) || '<i class="muted">(ohne Titel)</i>'}</div>${sub.length ? `<div class="rs">${sub.join(' · ')}</div>` : ''}</div>
+    <button class="rdel" data-del="${t.id}" title="Löschen" aria-label="Löschen">🗑</button></div>`;
 }
 function renderList() {
   const today = todayStr(), q = norm(state.search);
@@ -1584,9 +1602,9 @@ function renderList() {
     };
     const label = D ? `${relDay(D)} · ${parseLocal(D).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}` : 'Ohne Datum';
     const aps = calAppointments(D);
-    const apRow = (a, depth) => { const dn = apIsDone(a.id); return `<div class="trow kalrow${dn ? ' done' : ''}" style="--c:${esc(a.color)};padding-left:${12 + depth * 22}px"><button class="chk" data-chk="${esc(a.id)}" aria-label="erledigt">${dn ? '✓' : ''}</button><div class="rm"><div class="rt">${esc(a.title)}</div><div class="rs">${esc(a.allDay ? 'ganztägig' : hm(a.start))}</div></div></div>`; };
+    const apRow = (a, depth) => { const dn = apIsDone(a.id); return `<div class="trow kalrow${dn ? ' done' : ''}" style="--c:${esc(a.color)};padding-left:${12 + depth * 22}px"><button class="chk" data-chk="${esc(a.id)}" aria-label="erledigt">${dn ? '✓' : ''}</button><div class="rm"><div class="rs">${esc(a.allDay ? 'ganztägig' : hm(a.start))}${a.cat ? ` · <i class="dot" style="background:${esc(a.color)}"></i>${esc(a.cat)}` : ''}</div><div class="rt">${esc(a.title)}</div></div></div>`; };
     const allDn = aps.length && aps.every(a => apIsDone(a.id));
-    const apHead = aps.length ? `<div class="trow kalrow${allDn ? ' done' : ''}" style="--c:#5b6572"><button class="chk" data-chk="kal" aria-label="erledigt">${allDn ? '✓' : ''}</button><div class="rm"><div class="rt"><b>Termine</b></div></div></div>` + aps.map(a => apRow(a, 1)).join('') : '';
+    const apHead = aps.length ? `<div class="trow kalrow${allDn ? ' done' : ''}" style="--c:var(--line)"><button class="chk" data-chk="kal" aria-label="erledigt">${allDn ? '✓' : ''}</button><div class="rm"><div class="rt"><b>Termine</b></div></div></div>` + aps.map(a => apRow(a, 1)).join('') : '';
     const rows = apHead + roots.map(t => walk(t, 0)).join('');
     col.innerHTML = top.replace('<span class="spacer"></span>', '<span class="spacer"></span>' + allBtn)
       + `<div class="sec"><h3>${esc(label)}</h3>${rows ? `<div class="rows">${rows}</div>` : '<div class="empty">Nichts geplant.</div>'}</div>`;
@@ -1619,6 +1637,8 @@ function renderList() {
   col.innerHTML = html;
 }
 function listClick(e) {
+  const del = e.target.closest('[data-del]');
+  if (del) { e.stopPropagation(); deleteTask(del.dataset.del); return; }
   const chk = e.target.closest('[data-chk]');
   if (chk) { e.stopPropagation(); toggleDone(chk.dataset.chk, chk.dataset.d || undefined); return; }
   const m = e.target.closest('[data-map]');
@@ -1796,19 +1816,7 @@ function openTask(id, defaults = {}) {
   F('tCal').checked = v.cal !== false;
   F('tPrio').checked = !!v.prio;
   F('tAmount').value = amountText(v.amount);
-  // Oberthema: alle Aufgaben außer sich selbst und den eigenen Teilaufgaben
-  const excl = new Set(t ? [t.id, ...descendants(t.id).map(d => d.id)] : []);
-  const opts = ['<option value="">— Hauptaufgabe (kein Projekt) —</option>'];
-  (function walk(pid, depth) {
-    for (const k of kids(pid)) {
-      if (excl.has(k.id)) continue;
-      if (k.done && !isRec(k) && k.id !== v.parentId) continue;
-      opts.push(`<option value="${k.id}">${'  '.repeat(depth)}${depth ? '↳ ' : ''}${esc(k.title || '(ohne Titel)')}</option>`);
-      walk(k.id, depth + 1);
-    }
-  })(null, 0);
-  F('tParent').innerHTML = opts.join('');
-  F('tParent').value = v.parentId || '';
+  renderKats(v.category || '');
   // Wiederholung
   const r = v.repeat || { type: 'none' };
   let rv = r.type || 'none', wds = [];
@@ -1839,7 +1847,6 @@ function openTask(id, defaults = {}) {
   F('boxWhen').open = !v.date;   // ohne Datum: offen zum Eintragen, sonst zugeklappt mit Zusammenfassung
   F('boxMulti').open = !!v.endDate;
   F('boxRepeat').open = rv !== 'none';
-  F('boxAlarm').open = !!(v.alarms || []).length;
   F('boxMoney').open = v.amount != null || defaults.amount != null;
   F('tDepsBox').open = (v.deps || []).length > 0;
   updateSummaries();
@@ -1847,6 +1854,20 @@ function openTask(id, defaults = {}) {
   if (!t && !matchMedia('(pointer: coarse)').matches) F('tTitle').focus();
   if (defaults.amount != null && !t) F('tAmount').focus();
 }
+function renderKats(sel) {
+  F('tKats').innerHTML = `<label class="pill"><input type="radio" name="tkat" value=""${sel ? '' : ' checked'}>Keine</label>`
+    + pickableCats().map(c => `<label class="pill"><input type="radio" name="tkat" value="${esc(c.id)}"${c.id === sel ? ' checked' : ''}><i class="dot" style="background:${esc(c.color)}"></i>${esc(c.name)}</label>`).join('')
+    + '<button type="button" class="pill add" data-newkat>＋ Neue Kategorie</button>';
+}
+F('tKats').addEventListener('click', e => {
+  if (!e.target.closest('[data-newkat]')) return;
+  const nm = prompt('Name der neuen Kategorie:');
+  if (!nm || !nm.trim()) return;
+  const c = { id: uid(), name: nm.trim(), color: BRANCH[kalCats().length % BRANCH.length] };
+  cal().write([], [], [c]);   // landet im dicaKalendar
+  renderKats(c.id);
+  updateSummaries();
+});
 function renderDeps(t, parentId) {
   const sibs = kids(parentId).filter(s => !t || s.id !== t.id);
   F('tDepsBox').classList.toggle('hidden', !sibs.length);
@@ -1866,7 +1887,7 @@ function syncTaskForm(animate = true) {
   F('tRepEndVal').classList.toggle('hidden', rep === 'none' || F('tRepEnd').value === 'never');
   F('tUntil').classList.toggle('hidden', F('tRepEnd').value !== 'until');
   F('tCount').classList.toggle('hidden', F('tRepEnd').value !== 'count');
-  ['boxMulti', 'boxRepeat', 'boxAlarm', 'tCalWrap'].forEach(id => F(id).classList.toggle('hidden', !hasDate));
+  ['boxMulti', 'boxRepeat', 'tWhenExtra', 'tCalWrap'].forEach(id => F(id).classList.toggle('hidden', !hasDate));
   F('tTime').disabled = F('tEndTime').disabled = !hasDate;
   updateSummaries();
   const has = F('tAmount').value.trim() !== '';
@@ -1879,16 +1900,16 @@ function updateSummaries() {
   const cat = expcat(radioVal('tcat'));
   const al = F('tAlarms').querySelectorAll(':checked').length;
   const dt = F('tDate').value, tm = F('tTime').value, te = F('tEndTime').value;
-  F('sumWhen').textContent = dt ? dShort(dt) + (tm ? ', ' + tm + (te ? '–' + te : '') : '') : '';
-  { const sel = F('tParent'), o = sel.options[sel.selectedIndex]; F('sumParent').textContent = sel.value && o ? o.textContent.replace(/^[\s↳]+/, '') : 'Hauptaufgabe'; }
+  const alTxt = al ? (al === 1 ? '1 Erinnerung' : al + ' Erinnerungen') : '';
+  F('sumWhen').textContent = [dt ? dShort(dt) + (tm ? ', ' + tm + (te ? '–' + te : '') : '') : '', dt && F('tNag').checked ? (alTxt ? alTxt + ' + täglich' : 'täglich bis erledigt') : alTxt].filter(Boolean).join(' · ');
+  F('sumCat').textContent = (kcat(radioVal('tkat')) || {}).name || '';
   F('sumMulti').textContent = F('tEndDate').value ? 'bis ' + dShort(F('tEndDate').value) : '';
   F('sumRepeat').textContent = rep.value === 'none' ? '' : rep.value === 'monthend' ? (+F('tFromEnd').value ? F('tFromEnd').value + ' Tage vor Monatsende' : 'am Monatsende') : rep.options[rep.selectedIndex].text;
-  F('sumAlarm').textContent = (al ? (al === 1 ? '1 Erinnerung' : al + ' Erinnerungen') : '') + (F('tNag').checked ? (al ? ' · ' : '') + 'täglich bis erledigt' : '');
   F('sumMoney').textContent = amt ? amt + ' €' + (cat ? ' · ' + cat.name : '') : '';
   const d = F('tDeps').querySelectorAll(':checked').length;
   F('sumDeps').textContent = d ? 'wartet auf ' + d : '';
 }
-['tFromEnd', 'tNag', 'tParent', 'tDate', 'tTime', 'tEndTime', 'tEndDate', 'tAlarms', 'tDeps', 'tCats', 'tWeekdays', 'tRepEnd', 'tUntil'].forEach(id => F(id).addEventListener('change', updateSummaries));
+['tFromEnd', 'tNag', 'tKats', 'tDate', 'tTime', 'tEndTime', 'tEndDate', 'tAlarms', 'tDeps', 'tCats', 'tWeekdays', 'tRepEnd', 'tUntil'].forEach(id => F(id).addEventListener('change', updateSummaries));
 ['tDate', 'tRepeat', 'tRepEnd', 'tAmount', 'tFromEnd'].forEach(id => F(id).addEventListener('input', () => syncTaskForm()));
 F('tRepeat').addEventListener('change', () => {
   // Wochentage vorbelegen und ohne Datum mit heute beginnen
@@ -1904,7 +1925,6 @@ F('tNag').addEventListener('change', () => {
   if (F('tNag').checked && !F('tAlarms').querySelector(':checked')) F('tAlarms').querySelector('input[value="0"]').checked = true;
   syncTaskForm();
 });
-F('tParent').addEventListener('change', () => renderDeps(dlg.id ? byId(dlg.id) : null, F('tParent').value || null));
 F('tCatManage').onclick = () => openCats();
 F('tCancel').onclick = () => F('taskDialog').close();
 F('tDel').onclick = async () => { if (await deleteTask(dlg.id) !== false) F('taskDialog').close(); };
@@ -1948,7 +1968,8 @@ function readTaskForm() {
   }
   return {
     data: {
-      title, notes: F('tNotes').value.trim(), parentId: F('tParent').value || null,
+      title, notes: F('tNotes').value.trim(), parentId: dlg.id ? ((byId(dlg.id) || {}).parentId || null) : (dlg.defaults.parentId || null),
+      category: radioVal('tkat'),
       date: dateOut, time, endTime, endDate: endDate && endDate > dateOut ? endDate : '', repeat, nag: !!(date && F('tNag').checked),
       alarms: date ? [...F('tAlarms').querySelectorAll(':checked')].map(i => +i.value).sort((a, b) => a - b) : [],
       cal: F('tCal').checked, prio: F('tPrio').checked,
@@ -2009,7 +2030,7 @@ function toast(html, opts = {}) {
 
 /* ================= Menü, Suche, Sicherung ================= */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
-const BUILD = '29.09.-o';
+const BUILD = '01.10.-p';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
@@ -2017,6 +2038,12 @@ function updateCalInfo() {
   try { today = calAppointments(state.date).length; } catch (e) { today = 'Fehler: ' + e.message; }
   F('calInfo').textContent = `Version ${BUILD} · 📅 ${n} Kalendertermine gelesen (${MODE === 'server' ? 'Server' : 'dieser Browser'}), am gewählten Tag: ${today}`;
 }
+F('addBtn').onclick = () => {
+  const view = state.search ? 'list' : state.view;
+  if (view === 'map') addRoot();                              // schnell eintippen, direkt in der Mindmap
+  else if (view === 'pay') openTask(null, { amount: 0 });
+  else openTask(null, { date: state.listAll ? '' : (state.date || '') });
+};
 F('menuBtn').onclick = e => { updateCalInfo(); e.stopPropagation(); F('menu').classList.toggle('hidden'); if (!F('menu').classList.contains('hidden')) updateAccountInfo(); };
 document.addEventListener('click', e => { if (!e.target.closest('#menu, #menuBtn')) F('menu').classList.add('hidden'); });
 F('doneToggle').onclick = () => { state.showDone = !state.showDone; store.save('showDone', state.showDone); F('menu').classList.add('hidden'); render(); };
