@@ -1094,7 +1094,7 @@ function renderMap() {
   // Seitenklassen korrigieren (Aufklapp-Knopf innen/außen)
   flat.forEach(n => { if (!n.center) { n.el.classList.toggle('r', n.side > 0); n.el.classList.toggle('l', n.side < 0); } });
 
-  const PAD = 60, PADB = oneSided ? 110 : 60;   // Handy: unten Platz für die Aktionsleiste; Computer: gleichmäßig, damit die Mitte stimmt
+  const PAD = 60, PADB = oneSided ? (state.editing ? 420 : 110) : 60;   // beim Tippen am Handy: Platz, damit das Thema über die Tastatur gescrollt werden kann;   // Handy: unten Platz für die Aktionsleiste; Computer: gleichmäßig, damit die Mitte stimmt
   const minX = Math.min(...flat.map(n => n.x)) - PAD - 30, maxX = Math.max(...flat.map(n => n.x + n.w)) + PAD + 30;
   const minY = Math.min(...flat.map(n => n.y)) - PAD, maxY = Math.max(...flat.map(n => n.y + n.h)) + PADB;
   const W = maxX - minX, H = maxY - minY;
@@ -1156,14 +1156,27 @@ function renderMap() {
   if (inp) {
     inp.focus({ preventScroll: true });
     inp.select();
-    const nodeEl = inp.closest('.node');
-    const r = nodeEl.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
-    if (r.right > wr.right - 20) wrap.scrollLeft += r.right - wr.right + 60;
-    if (r.left < wr.left + 10) wrap.scrollLeft -= wr.left - r.left + 60;
-    if (r.bottom > wr.bottom - 90) wrap.scrollTop += r.bottom - wr.bottom + 120;
-    if (r.top < wr.top + 10) wrap.scrollTop -= wr.top - r.top + 40;
+    // Tastatur braucht einen Moment zum Aufklappen: mehrmals nachziehen, bis das Thema sichtbar ist
+    revealEditing();
+    [60, 250, 500, 900].forEach(ms => setTimeout(revealEditing, ms));
   }
 }
+
+// Das gerade bearbeitete Thema in den sichtbaren Bereich schieben (am Handy: über der Bildschirmtastatur)
+function revealEditing() {
+  const inp = F('mapNodes').querySelector('.nin');
+  if (!inp || !state.editing) return;
+  const node = inp.closest('.node'), wrap = F('mapWrap');
+  const r = node.getBoundingClientRect(), wr = wrap.getBoundingClientRect(), vv = window.visualViewport;
+  const top = Math.max(wr.top, vv ? vv.offsetTop : 0), bottom = Math.min(wr.bottom, vv ? vv.offsetTop + vv.height : innerHeight);
+  const left = Math.max(wr.left, vv ? vv.offsetLeft : 0), right = Math.min(wr.right, vv ? vv.offsetLeft + vv.width : innerWidth);
+  const m = 24;
+  if (r.bottom > bottom - m) wrap.scrollTop += r.bottom - (bottom - m) + 16;
+  else if (r.top < top + m) wrap.scrollTop -= top + m - r.top;
+  if (r.right > right - m) wrap.scrollLeft += r.right - (right - m) + 16;
+  else if (r.left < left + m) wrap.scrollLeft -= left + m - r.left;
+}
+if (window.visualViewport) { visualViewport.addEventListener('resize', () => { if (state.editing) revealEditing(); }); visualViewport.addEventListener('scroll', () => { if (state.editing) revealEditing(); }); }
 
 function applyZoom() {
   if (!mapLayout) return;
@@ -2042,7 +2055,7 @@ function openSearch(open) {
 }
 F('searchBtn').onclick = () => openSearch(F('search').classList.contains('hidden'));
 F('search').addEventListener('keydown', e => { if (e.key === 'Escape') openSearch(false); });
-const BUILD = '01.10.-q';
+const BUILD = '01.10.-r';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
