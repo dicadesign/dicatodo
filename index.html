@@ -375,9 +375,10 @@
   <nav class="tabs" aria-label="Ansicht">
     <button data-view="map" title="Mindmap" aria-label="Mindmap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="12" r="3.2" fill="currentColor" stroke="none"/><path d="M10.2 12C13 12 13 5.5 15.5 5.5M10.2 12H15.5M10.2 12C13 12 13 18.5 15.5 18.5"/><rect x="15.5" y="3.5" width="6" height="4" rx="1.6" fill="currentColor" stroke="none"/><rect x="15.5" y="10" width="6" height="4" rx="1.6" fill="currentColor" stroke="none"/><rect x="15.5" y="16.5" width="6" height="4" rx="1.6" fill="currentColor" stroke="none"/></svg></button>
     <button data-view="list" title="Liste" aria-label="Liste"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg></button>
+      <button id="searchBtn" title="Suchen" aria-label="Suchen"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.2"/><path d="M15.2 15.2L20 20"/></svg></button>
   </nav>
+  <input id="search" class="search hidden" type="search" placeholder="Suchen …" autocomplete="off" enterkeyhint="search">
   <div class="spacer"></div>
-  <input id="search" class="search" type="search" placeholder="Aufgaben suchen …" autocomplete="off">
   <div class="topbtns">
     <button id="addBtn" class="icon primary" title="Neue Aufgabe" aria-label="Neue Aufgabe">＋</button>
     <a id="calLink" class="icon" title="dicaKalendar öffnen" aria-label="dicaKalendar öffnen">📅</a>
@@ -385,6 +386,7 @@
     <div id="menu" class="menu hidden">
       <button id="payBtn">💶 Zahlungen</button>
       <button id="catsBtn">🏷️ Ausgaben-Kategorien verwalten</button>
+      <button id="menuAdd">＋ Neue Aufgabe</button>
       <button id="doneToggle">👁 Erledigte ausblenden</button>
       <div id="accountBox" class="hidden" style="display:flex;flex-direction:column">
         <hr>
@@ -921,7 +923,8 @@ function reconcileCal() {
 
 /* ================= Anzeige: allgemein ================= */
 function render() {
-  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.view === state.view && !state.search));
+  document.querySelectorAll('.tabs button[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === state.view && !state.search));
+  F('searchBtn').classList.toggle('on', !F('search').classList.contains('hidden'));
   const view = state.search ? 'list' : state.view;
   F('dayNav').classList.toggle('hidden', view === 'pay' || !!state.search || (view === 'list' && state.listAll));
   F('mapView').classList.toggle('hidden', view !== 'map');
@@ -1216,7 +1219,7 @@ function renderNodebar() {
     const ks = kids(t.id);
     const seq = ks.length > 1 && ks.some(k => (k.deps || []).length);
     bar.innerHTML = b('done', done ? '↩' : '✓', done ? 'Offen' : 'Erledigt')
-      + b('addChild', '↳', 'Unterthema') + b('addSibling', '＋', 'Daneben')
+      + b('addRoot', '✚', 'Aufgabe') + b('addChild', '↳', 'Unterthema') + b('addSibling', '＋', 'Daneben')
       + b('rename', '✏️', 'Umbenennen') + b('details', '⚙', 'Details')
       + (ks.length > 1 ? b('order', seq ? '∥' : '⛓', seq ? 'Parallel' : 'Nacheinander') : '')
       + '<span class="sep"></span>' + b('delete', '🗑', 'Löschen', 'danger');
@@ -1229,13 +1232,13 @@ function select(id) { state.sel = id; F('mapNodes').querySelectorAll('.node.sel'
 function addRoot() {
   const D = state.date;
   const t = newTask({ date: D || '', alarms: [] });
-  state.editing = { id: t.id, isNew: true }; state.sel = t.id;
+  state.editing = { id: t.id, isNew: true, from: 'center' }; state.sel = t.id;
   renderMap();
 }
 function addChild(parentId) {
   const t = newTask({ parentId });
   collapsed.delete(parentId); saveCollapsed();
-  state.editing = { id: t.id, isNew: true }; state.sel = t.id;
+  state.editing = { id: t.id, isNew: true, from: parentId }; state.sel = t.id;
   renderMap();
 }
 function addSibling(id) {
@@ -1246,7 +1249,7 @@ function addSibling(id) {
   if (isRootHere && !ref.parentId) return addRoot();
   const t = newTask({ parentId: ref.parentId, order: (ref.order ?? 0) + 0.5 });
   kids(ref.parentId).forEach((k, i) => { k.order = i; });
-  state.editing = { id: t.id, isNew: true }; state.sel = t.id;
+  state.editing = { id: t.id, isNew: true, from: id }; state.sel = t.id;
   renderMap();
 }
 function startRename(id) { state.editing = { id, isNew: false }; state.sel = id; renderMap(); }
@@ -1259,7 +1262,8 @@ function commitEdit(value, how) {
   state.editing = null;
   if (!t) return render();
   if (how === 'escape' || !value.trim()) {
-    if (ed.isNew) { tasks = tasks.filter(x => x !== t); state.sel = t.parentId || 'center'; if (!byId(state.sel)) state.sel = 'center'; }
+    // Leeres neues Thema verwerfen: die Auswahl geht dorthin zurück, wo man angefangen hat (nicht ein Niveau höher)
+    if (ed.isNew) { tasks = tasks.filter(x => x !== t); state.sel = ed.from && (ed.from === 'center' || byId(ed.from)) ? ed.from : (t.parentId || 'center'); if (state.sel !== 'center' && !byId(state.sel)) state.sel = 'center'; }
     render();
     return;
   }
@@ -2029,8 +2033,16 @@ function toast(html, opts = {}) {
 }
 
 /* ================= Menü, Suche, Sicherung ================= */
-document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
-const BUILD = '01.10.-p';
+document.querySelectorAll('.tabs button[data-view]').forEach(b => b.onclick = () => setView(b.dataset.view));
+function openSearch(open) {
+  F('search').classList.toggle('hidden', !open);
+  if (open) F('search').focus();
+  else if (state.search || F('search').value) { F('search').value = ''; state.search = ''; render(); return; }
+  render();
+}
+F('searchBtn').onclick = () => openSearch(F('search').classList.contains('hidden'));
+F('search').addEventListener('keydown', e => { if (e.key === 'Escape') openSearch(false); });
+const BUILD = '01.10.-q';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
@@ -2038,6 +2050,7 @@ function updateCalInfo() {
   try { today = calAppointments(state.date).length; } catch (e) { today = 'Fehler: ' + e.message; }
   F('calInfo').textContent = `Version ${BUILD} · 📅 ${n} Kalendertermine gelesen (${MODE === 'server' ? 'Server' : 'dieser Browser'}), am gewählten Tag: ${today}`;
 }
+F('menuAdd').onclick = () => { F('menu').classList.add('hidden'); F('addBtn').onclick(); };
 F('addBtn').onclick = () => {
   const view = state.search ? 'list' : state.view;
   if (view === 'map') addRoot();                              // schnell eintippen, direkt in der Mindmap
