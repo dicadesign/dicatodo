@@ -151,6 +151,10 @@
   }
   /* Unterthemen: Text mit Linie darunter */
   .node.dn { padding: 3px 4px 4px; font-size: 14px; border-bottom: 2px solid var(--c); border-radius: 0; background: var(--canvas); }
+  .node.dragging { opacity: .3; }
+  .node.drop { outline: 3px solid var(--accent); outline-offset: 4px; }
+  .dragghost { cursor: grabbing; box-shadow: 0 8px 22px rgba(0,0,0,.35); }
+  .node.cut { opacity: .45; outline: 2px dashed var(--muted); outline-offset: 3px; }
   .node.sel { outline: 2px solid var(--sel); outline-offset: 3px; }
   .node.dn.sel { border-radius: 3px 3px 0 0; }
   .node .chk {
@@ -398,7 +402,7 @@
       <button id="exportBtn">⬇️ Aufgaben sichern (Export)</button>
       <button id="importBtn">⬆️ Aufgaben wiederherstellen (Import)</button>
       <div class="menu-info" id="calInfo"></div>
-      <div class="menu-info">Tasten in der Mindmap: <b>Pfeiltasten</b> navigieren · <b>Tab</b> Unterthema · <b>Enter</b> nächstes Thema · <b>F2</b> umbenennen · <b>Leertaste</b> erledigt · <b>Entf</b> löschen</div>
+      <div class="menu-info">Tasten in der Mindmap: <b>Pfeiltasten</b> navigieren · <b>Strg+C / X / V</b> kopieren, ausschneiden, einfügen · <b>Ziehen</b> auf ein anderes Thema verschiebt · <b>Tab</b> Unterthema · <b>Enter</b> nächstes Thema · <b>F2</b> umbenennen · <b>Leertaste</b> erledigt · <b>Entf</b> löschen</div>
     </div>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
   </div>
@@ -997,6 +1001,7 @@ function nodeHtml(n, D) {
   const blk = blockers(t, D);
   if (blk.length && !done) cls.push('blocked');
   if (state.sel === t.id) cls.push('sel');
+  if (clip && clip.mode === 'cut' && clip.ids.includes(t.id)) cls.push('cut');
   const editing = state.editing && state.editing.id === t.id;
   const chips = [];
   if (t.prio) chips.push('<span class="chip">★</span>');
@@ -1224,7 +1229,7 @@ function renderNodebar() {
   if (String(state.sel).startsWith('kal')) {
     bar.innerHTML = b('openCal', '📅', 'Im Kalender öffnen');
   } else if (state.sel === 'center') {
-    bar.innerHTML = b('addRoot', '＋', 'Aufgabe') + b('addDialog', '📝', 'Mit Details');
+    bar.innerHTML = b('addRoot', '＋', 'Aufgabe') + b('addDialog', '📝', 'Mit Details') + (clip ? b('paste', '📋', 'Einfügen') : '');
   } else {
     const t = byId(state.sel);
     if (!t) { state.sel = null; bar.classList.add('hidden'); return; }
@@ -1235,6 +1240,7 @@ function renderNodebar() {
       + b('addRoot', '✚', 'Aufgabe') + b('addChild', '↳', 'Unterthema') + b('addSibling', '＋', 'Daneben')
       + b('rename', '✏️', 'Umbenennen') + b('details', '⚙', 'Details')
       + (ks.length > 1 ? b('order', seq ? '∥' : '⛓', seq ? 'Parallel' : 'Nacheinander') : '')
+      + b('copy', '⧉', 'Kopieren') + b('cut', '✂', 'Ausschneiden') + (clip ? b('paste', '📋', 'Einfügen') : '')
       + '<span class="sep"></span>' + b('delete', '🗑', 'Löschen', 'danger');
   }
   bar.classList.remove('hidden');
@@ -1265,6 +1271,182 @@ function addSibling(id) {
   state.editing = { id: t.id, isNew: true, from: id }; state.sel = t.id;
   renderMap();
 }
+/* ---------- Kopieren / Ausschneiden / Einfügen (Strg+C, Strg+X, Strg+V) ---------- */
+let clip = null;   // { mode: 'copy' | 'cut', ids: [Aufgaben-ID], text }
+const outline = (t, d = 0) => ['  '.repeat(d) + (t.title || '')].concat(kids(t.id).flatMap(k => outline(k, d + 1)));
+
+function copyToSystem(text) {
+  const fallback = () => { try { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); } catch {} };
+  try { navigator.clipboard.writeText(text).catch(fallback); } catch { fallback(); }
+}
+function copySel(cut) {
+  const t = state.sel && state.sel !== 'center' ? byId(state.sel) : null;
+  if (!t) return false;
+  const text = outline(t).join('\n');
+  clip = { mode: cut ? 'cut' : 'copy', ids: [t.id], text };
+  copyToSystem(text);
+  toast(cut ? `„${esc(t.title || 'Aufgabe')}“ ausgeschnitten – Thema wählen und einfügen.` : `„${esc(t.title || 'Aufgabe')}“ kopiert.`);
+  renderMap();
+  return true;
+}
+function cloneTree(rootId, parentId) {
+  const src = [byId(rootId), ...descendants(rootId)].filter(Boolean);
+  const map = new Map(src.map((t, i) => [t.id, uid() + i]));
+  const now = Date.now();
+  return src.map(t => {
+    const c = JSON.parse(JSON.stringify(t));
+    c.id = map.get(t.id);
+    c.parentId = t.id === rootId ? parentId : map.get(t.parentId);
+    c.deps = (t.deps || []).filter(d => map.has(d)).map(d => map.get(d));
+    c.done = false; c.doneAt = 0; c.doneDates = []; c.calExceptions = [];
+    c.created = now; c.updated = now;
+    delete c._touch;
+    return c;
+  });
+}
+// Oberste eingefügte Aufgabe an das Ziel anpassen: Unterthema → ohne eigenen Termin; Hauptthema → am gewählten Tag
+function fitTop(t, parentId) {
+  if (parentId) { t.date = ''; t.time = ''; t.endTime = ''; t.endDate = ''; t.repeat = { type: 'none' }; t.alarms = []; t.nag = false; }
+  else if (!t.date) t.date = state.date || todayStr();
+  else t.date = state.date || t.date;
+}
+function nextOrder(parentId) {
+  const sib = kids(parentId);
+  return sib.length ? Math.max(...sib.map(x => x.order ?? 0)) + 1 : 0;
+}
+function pasteInto(target, text) {
+  const parentId = target === 'center' || !byId(target) ? null : target;
+  const snap = JSON.stringify(tasks);
+  let added = [];
+  if (clip && (!text || text === clip.text)) {
+    if (clip.mode === 'cut') {
+      for (const id of clip.ids) {
+        const t = byId(id);
+        if (!t) continue;
+        if (parentId && (id === parentId || descendants(id).some(d => d.id === parentId))) { toast('Ein Thema lässt sich nicht in sich selbst einfügen.'); return; }
+        t.parentId = parentId; t.order = nextOrder(parentId); t.deps = []; t._touch = true;
+        fitTop(t, parentId);
+        added.push(t);
+      }
+      clip = null;
+    } else {
+      for (const id of clip.ids) {
+        const copy = cloneTree(id, parentId);
+        if (!copy.length) continue;
+        copy[0].order = nextOrder(parentId);
+        fitTop(copy[0], parentId);
+        tasks.push(...copy);
+        added.push(copy[0]);
+      }
+    }
+  } else if (text) {
+    added = tasksFromText(text, parentId);
+  }
+  if (!added.length) return;
+  if (parentId) { collapsed.delete(parentId); saveCollapsed(); }
+  state.sel = added[0].id;
+  persist();
+  toast(added.length === 1 ? 'Eingefügt.' : `${added.length} Themen eingefügt.`, { action: 'Rückgängig', onAction: () => { tasks = JSON.parse(snap); tasks.forEach(x => { x._touch = true; }); persist(); } });
+}
+// Text einfügen: jede Zeile eine Aufgabe, Einrückung = Unterthema
+function tasksFromText(text, parentId) {
+  const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim()).slice(0, 200);
+  const stack = [], tops = [];
+  for (const raw of lines) {
+    const indent = raw.match(/^\s*/)[0].replace(/\t/g, '  ').length;
+    const title = raw.trim().replace(/^([-*•]|\[[ xX]?\]|\d+[.)])\s+/, '').slice(0, 300);
+    if (!title) continue;
+    while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+    const pid = stack.length ? stack[stack.length - 1].id : parentId;
+    const t = newTask({ parentId: pid, title });
+    if (!pid) t.date = state.date || todayStr();
+    if (pid === parentId) tops.push(t);
+    stack.push({ indent, id: t.id });
+  }
+  return tops;
+}
+document.addEventListener('paste', e => {
+  if (state.view !== 'map' || state.search || state.editing || document.querySelector('dialog[open]')) return;
+  if (e.target.closest && e.target.closest('input, textarea, select')) return;
+  const text = (e.clipboardData && e.clipboardData.getData('text/plain')) || '';
+  if (!clip && !text.trim()) return;
+  e.preventDefault();
+  const sel = state.sel && state.sel !== 'center' && byId(state.sel) ? state.sel : 'center';
+  pasteInto(sel, text);
+});
+
+/* ---------- Ziehen: ein Thema auf ein anderes Thema (oder die Mitte) fallen lassen ---------- */
+function moveTask(id, parentId) {
+  const t = byId(id);
+  if (!t || (t.parentId || null) === (parentId || null)) return false;
+  if (parentId && (id === parentId || descendants(id).some(d => d.id === parentId))) { toast('Ein Thema lässt sich nicht unter sich selbst ablegen.'); return false; }
+  const snap = JSON.stringify(tasks);
+  t.parentId = parentId || null; t.order = nextOrder(parentId || null); t.deps = []; t._touch = true;
+  fitTop(t, parentId || null);
+  if (parentId) { collapsed.delete(parentId); saveCollapsed(); }
+  state.sel = t.id;
+  persist();
+  toast(parentId ? `„${esc(t.title || 'Aufgabe')}“ liegt jetzt unter „${esc(byId(parentId).title || 'Aufgabe')}“.` : `„${esc(t.title || 'Aufgabe')}“ ist jetzt eine Hauptaufgabe am gewählten Tag.`,
+    { action: 'Rückgängig', onAction: () => { tasks = JSON.parse(snap); tasks.forEach(x => { x._touch = true; }); persist(); } });
+  return true;
+}
+(() => {
+  const host = F('mapNodes');
+  let cand = null, drag = null;
+  const validTarget = (el, srcId) => {
+    const node = el && el.closest && el.closest('.node');
+    if (!node || !host.contains(node) || node.classList.contains('kal')) return null;
+    const id = node.dataset.id;
+    if (id === srcId) return null;
+    if (id !== 'center' && (!byId(id) || descendants(srcId).some(d => d.id === id))) return null;
+    return node;
+  };
+  const setTarget = node => {
+    if (drag.target === node) return;
+    if (drag.target) drag.target.classList.remove('drop');
+    drag.target = node;
+    if (node) node.classList.add('drop');
+  };
+  const end = () => {
+    if (drag) { drag.ghost.remove(); drag.src.classList.remove('dragging'); setTarget(null); }
+    drag = null; cand = null;
+    setTimeout(() => { panMoved = false; }, 0);
+  };
+  host.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'touch' || e.button !== 0 || state.editing) return;   // auf dem Handy: Ausschneiden + Einfügen
+    if (e.target.closest('.nin, .chk, .fold')) return;
+    const node = e.target.closest('.node');
+    if (!node || node.classList.contains('kal') || node.dataset.id === 'center' || !byId(node.dataset.id)) return;
+    cand = { id: node.dataset.id, node, x: e.clientX, y: e.clientY };
+  });
+  window.addEventListener('pointermove', e => {
+    if (!cand) return;
+    if (!drag) {
+      if (Math.hypot(e.clientX - cand.x, e.clientY - cand.y) < 7) return;
+      const r = cand.node.getBoundingClientRect(), ghost = cand.node.cloneNode(true);
+      ghost.classList.remove('sel', 'drop');
+      ghost.classList.add('dragghost');
+      ghost.style.cssText = `position:fixed;left:0;top:0;transform:none;width:${r.width}px;margin:0;z-index:300;pointer-events:none;opacity:.85;`;
+      document.body.appendChild(ghost);
+      cand.node.classList.add('dragging');
+      drag = { id: cand.id, src: cand.node, ghost, dx: cand.x - r.left, dy: cand.y - r.top, target: null };
+      panMoved = true;
+    }
+    drag.ghost.style.left = e.clientX - drag.dx + 'px';
+    drag.ghost.style.top = e.clientY - drag.dy + 'px';
+    setTarget(validTarget(document.elementFromPoint(e.clientX, e.clientY), drag.id));
+  });
+  window.addEventListener('pointerup', () => {
+    if (drag) {
+      const target = drag.target, id = drag.id;
+      end();
+      if (target) moveTask(id, target.dataset.id === 'center' ? null : target.dataset.id);
+    } else cand = null;
+  });
+  window.addEventListener('pointercancel', end);
+  window.addEventListener('keydown', e => { if (drag && e.key === 'Escape') end(); });
+})();
+
 function startRename(id) { state.editing = { id, isNew: false }; state.sel = id; renderMap(); }
 
 // Eingabe übernehmen. how: 'enter' | 'tab' | 'blur' | 'escape'
@@ -1377,6 +1559,7 @@ F('nodebar').addEventListener('click', e => {
     done: () => toggleDone(id), addChild: () => addChild(id), addSibling: () => addSibling(id),
     rename: () => startRename(id), details: () => openTask(id), order: () => toggleOrder(id),
     delete: () => deleteTask(id),
+    copy: () => copySel(false), cut: () => copySel(true), paste: () => pasteInto(id || 'center', ''),
     openCal: () => { location.href = F('calLink').href; },
   })[b.dataset.act]();
 });
@@ -1511,6 +1694,11 @@ document.addEventListener('keydown', e => {
   if (state.view !== 'map' || state.search || state.editing || document.querySelector('dialog[open]')) return;
   if (e.target.closest('input, textarea, select')) return;
   const id = state.sel;
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+    const k = e.key.toLowerCase();
+    if (k === 'c' || k === 'x') { if (copySel(k === 'x')) e.preventDefault(); }
+    return;   // Strg+V läuft über das paste-Ereignis
+  }
   if (e.key.startsWith('Arrow') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); return navArrow(e.key); }
   if (!id) { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); select('center'); } return; }
   if (String(id).startsWith('kal')) { if (e.key === 'Escape') select(null); else if (e.key === 'Enter') { e.preventDefault(); location.href = F('calLink').href; } return; }
@@ -2055,7 +2243,7 @@ function openSearch(open) {
 }
 F('searchBtn').onclick = () => openSearch(F('search').classList.contains('hidden'));
 F('search').addEventListener('keydown', e => { if (e.key === 'Escape') openSearch(false); });
-const BUILD = '01.10.-r';
+const BUILD = '05.10.-a';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
