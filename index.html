@@ -2243,7 +2243,7 @@ function openSearch(open) {
 }
 F('searchBtn').onclick = () => openSearch(F('search').classList.contains('hidden'));
 F('search').addEventListener('keydown', e => { if (e.key === 'Escape') openSearch(false); });
-const BUILD = '05.10.-a';
+const BUILD = '16.10.-a';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
@@ -2327,9 +2327,11 @@ function queueSync(delay = 400) {
 }
 async function api(method, path, body) {
   let res;
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 12000);
   try {
-    res = await fetch(API + path, { method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+    res = await fetch(API + path, { method, credentials: 'same-origin', signal: ctl.signal, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
   } catch { const e = new Error('Keine Verbindung zum Server.'); e.network = true; throw e; }
+  finally { clearTimeout(timer); }
   let data = null;
   try { data = await res.json(); } catch {}
   if (!res.ok || !data) { const e = new Error((data && data.error) || `Fehler ${res.status}`); e.status = res.status; e.notApi = !data; throw e; }
@@ -2519,18 +2521,21 @@ async function init() {
     document.body.innerHTML = '<p style="padding:20px">dicaToDo braucht die Datei <b>recurrence.js</b> von dicaKalendar. Bitte dicaToDo neben dem Ordner <b>dicaKalendar</b> ablegen.</p>';
     return;
   }
+  const online = /^https?:$/.test(location.protocol);
+  if (online && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  // Schon angemeldet gewesen: sofort mit den Daten auf dem Gerät anzeigen (auch ganz ohne Netz)
+  if (online && store.load('syncUser', '')) { MODE = 'server'; F('calLink').href = '../'; sync.on = true; sync.user = store.load('syncUser', ''); F('accountBox').classList.remove('hidden'); state.recenter = true; }
   render();
-  if (!/^https?:$/.test(location.protocol)) return initLocal();
+  if (!online) return initLocal();
   try {
     const me = await api('GET', 'me');
     MODE = 'server';
     F('calLink').href = '../';
     state.recenter = true; render();   // ab jetzt aus dem Server-Speicher (Termine, Aufgaben)
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
     if (me.setupNeeded) return showAuth(true);
     startSync(me.user);
   } catch (e) {
-    if (e.status === 401 && !e.notApi) { MODE = 'server'; F('calLink').href = '../'; state.recenter = true; render(); return showAuth(false); }
+    if (e.status === 401 && !e.notApi) { MODE = 'server'; sync.on = false; F('calLink').href = '../'; state.recenter = true; render(); return showAuth(false); }
     const known = store.load('syncUser', '');
     if (e.network && known) {   // offline: mit den Daten auf dem Gerät weiterarbeiten
       MODE = 'server'; F('calLink').href = '../'; state.recenter = true; render();
@@ -2541,6 +2546,7 @@ async function init() {
   }
 }
 window.addEventListener('online', () => queueSync(100));
+window.addEventListener('offline', () => { if (sync.on) setSyncStatus('off'); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { queueSync(100);  } });
 setInterval(() => { if (!document.hidden) queueSync(0); }, 60e3);
 let resizeT;

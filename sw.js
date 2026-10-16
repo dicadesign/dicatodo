@@ -4,7 +4,7 @@
  *  - zeigt Push-Benachrichtigungen an und öffnet beim Antippen den passenden Tag
  */
 'use strict';
-const CACHE = 'dicatodo-v3';
+const CACHE = 'dicatodo-v4';
 const SHELL = ['./', 'index.html', '../recurrence.js', 'manifest.webmanifest', 'icons/todo-192.png', 'icons/todo-180.png'];
 
 self.addEventListener('install', e => {
@@ -23,16 +23,21 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   // Nur eigene GET-Anfragen der App; die API (Anmeldung, Synchronisation) nie zwischenspeichern
   if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.includes('/api/')) return;
+  // Zuerst das Netz (mit Zeitlimit, damit die App bei schlechtem Empfang nicht hängt), sonst der Zwischenspeicher
+  const key = e.request.mode === 'navigate' ? './' : e.request;
+  const fromCache = () => caches.match(key, { ignoreSearch: true }).then(r => r || (e.request.mode === 'navigate' ? caches.match('index.html') : undefined));
+  const net = new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('timeout')), 5000);
+    fetch(e.request).then(res => { clearTimeout(t); resolve(res); }, err => { clearTimeout(t); reject(err); });
+  });
   e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request.mode === 'navigate' ? './' : e.request, copy));
-        }
-        return res;
-      })
-      .catch(() => caches.match(e.request.mode === 'navigate' ? './' : e.request, { ignoreSearch: true }))
+    net.then(res => {
+      if (res.ok) {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(key, copy));
+      }
+      return res;
+    }).catch(() => fromCache().then(r => r || Response.error()))
   );
 });
 
