@@ -153,6 +153,9 @@
   .node.dn { padding: 3px 4px 4px; font-size: 14px; border-bottom: 2px solid var(--c); border-radius: 0; background: var(--canvas); }
   .node.dragging { opacity: .3; }
   .node.drop { outline: 3px solid var(--accent); outline-offset: 4px; }
+  .node.drop-before::before, .node.drop-after::after { content: ''; position: absolute; left: -6px; right: -6px; height: 4px; border-radius: 2px; background: var(--accent); }
+  .node.drop-before::before { top: -8px; }
+  .node.drop-after::after { bottom: -8px; }
   .dragghost { cursor: grabbing; box-shadow: 0 8px 22px rgba(0,0,0,.35); }
   .node.cut { opacity: .45; outline: 2px dashed var(--muted); outline-offset: 3px; }
   .node.sel { outline: 2px solid var(--sel); outline-offset: 3px; }
@@ -402,7 +405,7 @@
       <button id="exportBtn">⬇️ Aufgaben sichern (Export)</button>
       <button id="importBtn">⬆️ Aufgaben wiederherstellen (Import)</button>
       <div class="menu-info" id="calInfo"></div>
-      <div class="menu-info">Tasten in der Mindmap: <b>Pfeiltasten</b> navigieren · <b>Strg+C / X / V</b> kopieren, ausschneiden, einfügen · <b>Ziehen</b> auf ein anderes Thema verschiebt · <b>Tab</b> Unterthema · <b>Enter</b> nächstes Thema · <b>F2</b> umbenennen · <b>Leertaste</b> erledigt · <b>Entf</b> löschen</div>
+      <div class="menu-info">Tasten in der Mindmap: <b>Pfeiltasten</b> navigieren · <b>Strg+C / X / V</b> kopieren, ausschneiden, einfügen · <b>Ziehen</b> auf ein Thema verschiebt, am Rand eines Themas sortiert um · <b>Alt+↑/↓</b> Reihenfolge · <b>Tab</b> Unterthema · <b>Enter</b> nächstes Thema · <b>F2</b> umbenennen · <b>Leertaste</b> erledigt · <b>Entf</b> löschen</div>
     </div>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
   </div>
@@ -1240,6 +1243,7 @@ function renderNodebar() {
       + b('addRoot', '✚', 'Aufgabe') + b('addChild', '↳', 'Unterthema') + b('addSibling', '＋', 'Daneben')
       + b('rename', '✏️', 'Umbenennen') + b('details', '⚙', 'Details')
       + (ks.length > 1 ? b('order', seq ? '∥' : '⛓', seq ? 'Parallel' : 'Nacheinander') : '')
+      + (t.parentId && kids(t.parentId).length > 1 ? b('up', '▲', 'Hoch') + b('down', '▼', 'Runter') : '')
       + b('copy', '⧉', 'Kopieren') + b('cut', '✂', 'Ausschneiden') + (clip ? b('paste', '📋', 'Einfügen') : '')
       + '<span class="sep"></span>' + b('delete', '🗑', 'Löschen', 'danger');
   }
@@ -1390,6 +1394,40 @@ function moveTask(id, parentId) {
     { action: 'Rückgängig', onAction: () => { tasks = JSON.parse(snap); tasks.forEach(x => { x._touch = true; }); persist(); } });
   return true;
 }
+// Ein Thema vor/hinter ein anderes Thema setzen (gleiche Ebene; bei anderem Oberthema wird es dorthin verschoben)
+function placeTask(id, refId, where) {
+  const t = byId(id), ref = byId(refId);
+  if (!t || !ref || id === refId) return false;
+  const newParent = ref.parentId || null;
+  if (newParent && (newParent === id || descendants(id).some(d => d.id === newParent))) { toast('Ein Thema lässt sich nicht unter sich selbst ablegen.'); return false; }
+  const snap = JSON.stringify(tasks);
+  const reparent = (t.parentId || null) !== newParent;
+  const sibs = kids(newParent).filter(x => x.id !== id);
+  let i = sibs.findIndex(x => x.id === refId);
+  if (where === 'after') i++;
+  const before = kids(newParent).map(x => x.id).join();
+  sibs.splice(i, 0, t);
+  if (!reparent && sibs.map(x => x.id).join() === before) return false;   // nichts geändert
+  t.parentId = newParent;
+  if (reparent) { t.deps = []; fitTop(t, newParent); }
+  sibs.forEach((x, k) => { if ((x.order ?? 0) !== k) { x.order = k; x._touch = true; } });
+  t._touch = true;
+  if (newParent) { collapsed.delete(newParent); saveCollapsed(); }
+  state.sel = t.id;
+  persist();
+  toast(reparent ? `„${esc(t.title || 'Aufgabe')}“ verschoben.` : 'Reihenfolge geändert.',
+    { action: 'Rückgängig', onAction: () => { tasks = JSON.parse(snap); tasks.forEach(x => { x._touch = true; }); persist(); } });
+  return true;
+}
+// Mit Tastatur/Knopf: Teilaufgabe um einen Platz nach oben (-1) oder unten (+1)
+function moveSibling(id, dir) {
+  const t = byId(id);
+  if (!t) return;
+  const sibs = kids(t.parentId || null), i = sibs.findIndex(x => x.id === id), j = i + dir;
+  if (j < 0 || j >= sibs.length) return;
+  placeTask(id, sibs[j].id, dir < 0 ? 'before' : 'after');
+}
+
 (() => {
   const host = F('mapNodes');
   let cand = null, drag = null;
@@ -1401,11 +1439,17 @@ function moveTask(id, parentId) {
     if (id !== 'center' && (!byId(id) || descendants(srcId).some(d => d.id === id))) return null;
     return node;
   };
-  const setTarget = node => {
-    if (drag.target === node) return;
-    if (drag.target) drag.target.classList.remove('drop');
-    drag.target = node;
-    if (node) node.classList.add('drop');
+  // Oberes/unteres Drittel eines Themas = davor/dahinter einsortieren, Mitte = als Unterthema ablegen
+  const zoneOf = (node, y) => {
+    if (!node || node.dataset.id === 'center') return 'child';
+    const r = node.getBoundingClientRect(), f = (y - r.top) / r.height;
+    return f < 0.3 ? 'before' : f > 0.7 ? 'after' : 'child';
+  };
+  const setTarget = (node, zone) => {
+    if (drag.target === node && drag.zone === zone) return;
+    if (drag.target) drag.target.classList.remove('drop', 'drop-before', 'drop-after');
+    drag.target = node; drag.zone = node ? zone : null;
+    if (node) node.classList.add(zone === 'before' ? 'drop-before' : zone === 'after' ? 'drop-after' : 'drop');
   };
   const end = () => {
     if (drag) { drag.ghost.remove(); drag.src.classList.remove('dragging'); setTarget(null); }
@@ -1429,18 +1473,19 @@ function moveTask(id, parentId) {
       ghost.style.cssText = `position:fixed;left:0;top:0;transform:none;width:${r.width}px;margin:0;z-index:300;pointer-events:none;opacity:.85;`;
       document.body.appendChild(ghost);
       cand.node.classList.add('dragging');
-      drag = { id: cand.id, src: cand.node, ghost, dx: cand.x - r.left, dy: cand.y - r.top, target: null };
+      drag = { id: cand.id, src: cand.node, ghost, dx: cand.x - r.left, dy: cand.y - r.top, target: null, zone: null };
       panMoved = true;
     }
     drag.ghost.style.left = e.clientX - drag.dx + 'px';
     drag.ghost.style.top = e.clientY - drag.dy + 'px';
-    setTarget(validTarget(document.elementFromPoint(e.clientX, e.clientY), drag.id));
+    { const n = validTarget(document.elementFromPoint(e.clientX, e.clientY), drag.id); setTarget(n, zoneOf(n, e.clientY)); }
   });
   window.addEventListener('pointerup', () => {
     if (drag) {
-      const target = drag.target, id = drag.id;
+      const target = drag.target, zone = drag.zone, id = drag.id;
       end();
-      if (target) moveTask(id, target.dataset.id === 'center' ? null : target.dataset.id);
+      if (target && zone === 'child') moveTask(id, target.dataset.id === 'center' ? null : target.dataset.id);
+      else if (target) placeTask(id, target.dataset.id, zone);
     } else cand = null;
   });
   window.addEventListener('pointercancel', end);
@@ -1559,6 +1604,7 @@ F('nodebar').addEventListener('click', e => {
     done: () => toggleDone(id), addChild: () => addChild(id), addSibling: () => addSibling(id),
     rename: () => startRename(id), details: () => openTask(id), order: () => toggleOrder(id),
     delete: () => deleteTask(id),
+    up: () => moveSibling(id, -1), down: () => moveSibling(id, 1),
     copy: () => copySel(false), cut: () => copySel(true), paste: () => pasteInto(id || 'center', ''),
     openCal: () => { location.href = F('calLink').href; },
   })[b.dataset.act]();
@@ -1699,6 +1745,7 @@ document.addEventListener('keydown', e => {
     if (k === 'c' || k === 'x') { if (copySel(k === 'x')) e.preventDefault(); }
     return;   // Strg+V läuft über das paste-Ereignis
   }
+  if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && id && byId(id)) { e.preventDefault(); return moveSibling(id, e.key === 'ArrowUp' ? -1 : 1); }
   if (e.key.startsWith('Arrow') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); return navArrow(e.key); }
   if (!id) { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); select('center'); } return; }
   if (String(id).startsWith('kal')) { if (e.key === 'Escape') select(null); else if (e.key === 'Enter') { e.preventDefault(); location.href = F('calLink').href; } return; }
@@ -2243,7 +2290,7 @@ function openSearch(open) {
 }
 F('searchBtn').onclick = () => openSearch(F('search').classList.contains('hidden'));
 F('search').addEventListener('keydown', e => { if (e.key === 'Escape') openSearch(false); });
-const BUILD = '16.10.-a';
+const BUILD = '26.10.-a';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
