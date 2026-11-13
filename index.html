@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>dicaToDo</title>
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#0f2f62">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/todo-32.png">
 <link rel="apple-touch-icon" href="icons/todo-180.png">
@@ -13,23 +13,32 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="dicaToDo">
 <style>
+  /* Marke DicaKultur (wie dicaVideo): Poppins für Text, Montserrat für Titel – lokal, ohne Google-Server */
+  @font-face { font-family: "Poppins"; font-weight: 400; font-style: normal; font-display: swap; src: url("../fonts/poppins-400.woff2") format("woff2"); }
+  @font-face { font-family: "Poppins"; font-weight: 500; font-style: normal; font-display: swap; src: url("../fonts/poppins-500.woff2") format("woff2"); }
+  @font-face { font-family: "Poppins"; font-weight: 600; font-style: normal; font-display: swap; src: url("../fonts/poppins-600.woff2") format("woff2"); }
+  @font-face { font-family: "Poppins"; font-weight: 700; font-style: normal; font-display: swap; src: url("../fonts/poppins-700.woff2") format("woff2"); }
+  @font-face { font-family: "Montserrat"; font-weight: 700; font-style: normal; font-display: swap; src: url("../fonts/montserrat-700.woff2") format("woff2"); }
+  @font-face { font-family: "Montserrat"; font-weight: 800; font-style: normal; font-display: swap; src: url("../fonts/montserrat-800.woff2") format("woff2"); }
   :root {
     color-scheme: light;
-    --bg: #f6f5f2;
+    --bg: #f4f6fa;
     --surface: #ffffff;
-    --surface-2: #f0eee9;
-    --text: #1d1c1a;
-    --muted: #6b6862;
-    --line: #e3e0da;
-    --accent: #0f766e;
+    --surface-2: #edf1f7;
+    --text: #13213b;
+    --muted: #5c677a;
+    --line: #dde3ec;
+    --accent: #0f2f62;
     --accent-ink: #ffffff;
-    --accent-soft: #d8efec;
+    --accent-soft: #e2e9f4;
+    --brand-yellow: #ffcd05;
+    --brand-red: #dd0000;
     --danger: #c0392b;
     --warn: #b45309;
-    --shadow: 0 12px 36px rgba(20, 18, 14, .16);
+    --shadow: 0 12px 36px rgba(15, 47, 98, .16);
     --radius: 10px;
-    --canvas: #fbfaf8;
-    --central: #23313f;
+    --canvas: #f8f9fc;
+    --central: #0f2f62;
     --central-ink: #ffffff;
     --sel: #2f80ed;
   }
@@ -38,7 +47,7 @@
   html, body { margin: 0; height: 100%; }
   body {
     background: var(--bg); color: var(--text);
-    font: 15px/1.4 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    font: 14.5px/1.45 "Poppins", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
     display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
   }
   button, input, select, textarea { font: inherit; color: inherit; }
@@ -63,7 +72,7 @@
     background: var(--surface); border-bottom: 1px solid var(--line);
     box-shadow: 0 2px 10px rgba(0, 0, 0, .06); position: relative; z-index: 30;
   }
-  .brand { font-weight: 700; font-size: 18px; letter-spacing: -.01em; margin-right: 8px; white-space: nowrap; }
+  .brand { font-family: "Montserrat", "Poppins", "Segoe UI", sans-serif; font-weight: 800; font-size: 18px; letter-spacing: -.01em; margin-right: 8px; white-space: nowrap; }
   .brand span { color: var(--accent); }
   .tabs { display: flex; gap: 4px; background: var(--surface-2); padding: 3px; border-radius: 10px; }
   .tabs button { border: 0; background: transparent; padding: 6px 14px; display: grid; place-items: center; line-height: 1; border-radius: 8px; font-weight: 600; color: var(--muted); white-space: nowrap; }
@@ -95,7 +104,7 @@
   .view { position: absolute; inset: 0; display: flex; flex-direction: column; }
 
   .nav { display: flex; gap: 8px; align-items: center; position: relative; }
-  .period { margin: 0 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+  .period { font-family: "Montserrat", "Poppins", "Segoe UI", sans-serif; margin: 0 0 0 6px; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
   .period > button { border: 0; background: transparent; padding: 4px 6px; font: inherit; display: flex; align-items: center; gap: 8px; border-radius: 8px; white-space: nowrap; }
   .period .chev { width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translateY(-2px); }
   .period input[type=date] { position: absolute; left: 0; bottom: 0; width: 100%; height: 1px; opacity: 0; pointer-events: none; }
@@ -261,7 +270,7 @@
   }
   dialog::backdrop { background: rgba(10, 10, 8, .45); }
   dialog form, .dlg { padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; }
-  dialog h2 { margin: 0; font-size: 19px; }
+  dialog h2 { margin: 0; font-size: 19px; font-family: "Montserrat", "Poppins", "Segoe UI", sans-serif; font-weight: 700; }
   dialog h2:focus { outline: none; }
   label.f, div.f { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--muted); }
   .field, label.f > input, label.f > select, label.f > textarea {
@@ -320,14 +329,14 @@
 
   /* ---------- Hinweise ---------- */
   #toasts { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; width: max-content; max-width: calc(100vw - 24px); }
-  .toast { background: #2a2926; color: #fff; padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); font-size: 14px; display: flex; gap: 12px; align-items: center; }
-  .toast button { background: transparent; color: #7ee3d6; border: 0; font-weight: 700; padding: 2px 4px; }
+  .toast { background: var(--accent); color: #fff; padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow); font-size: 14px; display: flex; gap: 12px; align-items: center; }
+  .toast button { background: transparent; color: var(--brand-yellow); border: 0; font-weight: 700; padding: 2px 4px; }
 
   /* ---------- Anmeldung ---------- */
   .auth { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: grid; place-items: center; padding: 16px; overflow: auto; }
   .auth-card { width: min(380px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 28px 24px; display: flex; flex-direction: column; gap: 14px; }
   .auth-card img { border-radius: 18px; align-self: center; }
-  .auth-card h2 { margin: 0; text-align: center; font-size: 22px; }
+  .auth-card h2 { font-family: "Montserrat", "Poppins", "Segoe UI", sans-serif; font-weight: 800; margin: 0; text-align: center; font-size: 22px; }
   .auth-card h2 span { color: var(--accent); }
   .auth-card p { margin: 0; color: var(--muted); font-size: 14px; text-align: center; }
 
@@ -337,7 +346,10 @@
     .topbar { flex-wrap: wrap; gap: 8px; padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
     .search { width: 100%; order: 6; }
     .nav { gap: 4px; }
-    .period { font-size: 16px; margin-left: 2px; }
+    .period { font-size: 15px; margin-left: 2px; min-width: 0; }
+    .period > button { max-width: 100%; padding-inline: 4px; }
+    #periodLabel { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .nav { min-width: 0; max-width: 100%; }
     .zoom { top: auto; bottom: 90px; right: 10px; }
     .cards { grid-template-columns: 1fr 1fr; }
     .cards .card:first-child { grid-column: 1 / -1; }

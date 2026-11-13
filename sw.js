@@ -5,7 +5,8 @@
  */
 'use strict';
 const CACHE = 'dicatodo-v4';
-const SHELL = ['./', 'index.html', '../recurrence.js', 'manifest.webmanifest', 'icons/todo-192.png', 'icons/todo-180.png'];
+const SHELL = ['./', 'index.html', '../recurrence.js', 'manifest.webmanifest', 'icons/todo-192.png', 'icons/todo-180.png',
+  '../fonts/poppins-400.woff2', '../fonts/poppins-500.woff2', '../fonts/poppins-600.woff2', '../fonts/poppins-700.woff2', '../fonts/montserrat-700.woff2', '../fonts/montserrat-800.woff2'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
