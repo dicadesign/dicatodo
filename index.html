@@ -227,6 +227,7 @@
   .trow { border-left: 4px solid var(--c, var(--line)); }
   .trow .rt { font-weight: 600; overflow-wrap: anywhere; }
   .trow .rs .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
+  .rlink { text-decoration: none; margin-right: 4px; }
   .rdel { border: 0; background: transparent; padding: 2px 6px; font-size: 15px; opacity: .45; align-self: center; flex: 0 0 auto; }
   .rdel:hover { opacity: 1; background: var(--surface-2); }
   .trow.kalrow .chk { border-color: var(--c); }
@@ -518,6 +519,9 @@
       <div class="hint">Nichts angehakt = kann parallel zu den anderen erledigt werden.</div>
     </details>
 
+    <label class="f">Link (URL)
+      <input id="tUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="none" placeholder="https://…">
+    </label>
     <label class="f">Notizen
       <textarea id="tNotes" rows="3"></textarea>
     </label>
@@ -794,6 +798,7 @@ function toEvent(t) {
   const p = pathOf(t);
   if (p) notes.push('Projekt: ' + p);
   if (t.amount != null) notes.push(`Betrag: ${eur(t.amount)}${expcat(t.expcat) ? ' · ' + expcat(t.expcat).name : ''}`);
+  if (t.url) notes.push('Link: ' + t.url);
   if (t.notes) notes.push(t.notes);
   notes.push('— aus dicaToDo');
   return {
@@ -1016,6 +1021,7 @@ function nodeHtml(n, D) {
   const pr = progress(t, D);
   if (pr) chips.push(`<span class="chip">${pr.done}/${pr.all}</span>`);
   if (n.depth === 1 && t.parentId && D) chips.push(`<span class="chip">↳ ${esc(pathOf(t))}</span>`);
+  if (t.url) chips.push('<span class="chip" title="Doppelklick öffnet den Link">🔗</span>');
   if (t.notes) chips.push('<span class="chip" title="Notiz">📝</span>');
   const title = editing
     ? `<input class="nin" value="${esc(t.title)}" placeholder="${n.depth === 1 ? 'Neue Aufgabe …' : 'Teilaufgabe …'}" enterkeyhint="next" autocomplete="off" aria-label="Titel">`
@@ -1627,9 +1633,15 @@ F('mapNodes').addEventListener('dblclick', e => {
   if (!node || e.target.closest('.chk, .fold, .nin')) return;
   if (node.classList.contains('kal')) return;
   if (node.dataset.id === 'center') return addRoot();
+  const t = byId(node.dataset.id);
+  if (t && t.url) return openUrl(t.url);   // mit Link: Doppelklick öffnet ihn (Umbenennen: F2 oder Details)
   startRename(node.dataset.id);
 });
 // Detalles: Rechtsklick (Computer) oder Finger gedrückt halten (Handy)
+function openUrl(u) {
+  if (!/^(https?|mailto|tel):/i.test(u)) return;
+  window.open(u, '_blank', 'noopener');
+}
 function openNodeDetails(node) {
   if (!node || state.editing) return;
   const id = node.dataset.id;
@@ -1817,7 +1829,7 @@ function rowHtml(t, D, extra = '', depth = 0, noPath = false) {
   const blk = blockers(t, D);
   if (blk.length && !done) sub.push('🔒 wartet auf ' + esc(blk.map(b => b.title).join(', ')));
   if (t.amount != null) sub.push(`<span class="amt">${esc(eur(t.amount))}</span>${c ? ' · ' + esc(c.name) : ''}`);
-  const top = [t.time ? esc(timeText(t)) : '', kc ? `<i class="dot" style="background:${esc(kc.color)}"></i>${esc(kc.name)}` : ''].filter(Boolean).join(' · ');
+  const top = [t.url ? `<a class="rlink" href="${esc(t.url)}" target="_blank" rel="noopener" title="Link öffnen">🔗</a>` : '', t.time ? esc(timeText(t)) : '', kc ? `<i class="dot" style="background:${esc(kc.color)}"></i>${esc(kc.name)}` : ''].filter(Boolean).join(' · ');
   return `<div class="trow${done ? ' done' : ''}" data-open="${t.id}" style="--c:${kc ? esc(kc.color) : 'var(--line)'}${depth ? `;padding-left:${12 + depth * 22}px` : ''}">
     <button class="chk" data-chk="${t.id}" data-d="${D || ''}" aria-label="erledigt">${done ? '✓' : ''}</button>
     <div class="rm">${top ? `<div class="rs">${top}</div>` : ''}<div class="rt">${t.prio ? '★ ' : ''}${esc(t.title) || '<i class="muted">(ohne Titel)</i>'}</div>${sub.length ? `<div class="rs">${sub.join(' · ')}</div>` : ''}</div>
@@ -1881,6 +1893,7 @@ function renderList() {
   col.innerHTML = html;
 }
 function listClick(e) {
+  if (e.target.closest('.rlink')) { e.stopPropagation(); return; }
   const del = e.target.closest('[data-del]');
   if (del) { e.stopPropagation(); deleteTask(del.dataset.del); return; }
   const chk = e.target.closest('[data-chk]');
@@ -2053,6 +2066,7 @@ function openTask(id, defaults = {}) {
   F('tHeading').textContent = t ? (t.parentId ? 'Teilaufgabe bearbeiten' : 'Aufgabe bearbeiten') : (defaults.amount != null ? 'Neue Zahlung' : 'Neue Aufgabe');
   F('tTitle').value = v.title;
   F('tNotes').value = v.notes || '';
+  F('tUrl').value = v.url || '';
   F('tDate').value = v.date || '';
   F('tTime').value = v.time || '';
   F('tEndTime').value = v.endTime || '';
@@ -2182,6 +2196,9 @@ function readTaskForm() {
   if (endDate === 'x') return { err: 'Das Enddatum liegt vor dem Datum.' };
   if (endTime && !time) return { err: 'Bitte auch die Anfangszeit („Von“) angeben.' };
   if (time && endTime && !endDate && endTime <= time) return { err: '„Bis“ muss nach „Von“ liegen (oder ein Enddatum wählen).' };
+  let urlOut = F('tUrl').value.trim();
+  if (urlOut && !/^[a-z][a-z0-9+.-]*:/i.test(urlOut)) urlOut = 'https://' + urlOut;
+  if (urlOut && !/^(https?|mailto|tel):/i.test(urlOut)) return { err: 'Der Link muss mit http(s)://, mailto: oder tel: beginnen.' };
   const amount = parseAmount(F('tAmount').value);
   if (Number.isNaN(amount)) return { err: 'Der Betrag ist keine gültige Zahl (z. B. 49,90).' };
   const rv = F('tRepeat').value;
@@ -2212,7 +2229,7 @@ function readTaskForm() {
   }
   return {
     data: {
-      title, notes: F('tNotes').value.trim(), parentId: dlg.id ? ((byId(dlg.id) || {}).parentId || null) : (dlg.defaults.parentId || null),
+      title, url: urlOut, notes: F('tNotes').value.trim(), parentId: dlg.id ? ((byId(dlg.id) || {}).parentId || null) : (dlg.defaults.parentId || null),
       category: radioVal('tkat'),
       date: dateOut, time, endTime, endDate: endDate && endDate > dateOut ? endDate : '', repeat, nag: !!(date && F('tNag').checked),
       alarms: date ? [...F('tAlarms').querySelectorAll(':checked')].map(i => +i.value).sort((a, b) => a - b) : [],
@@ -2282,7 +2299,7 @@ function openSearch(open) {
 }
 F('searchBtn').onclick = () => openSearch(F('search').classList.contains('hidden'));
 F('search').addEventListener('keydown', e => { if (e.key === 'Escape') openSearch(false); });
-const BUILD = '26.10.-a';
+const BUILD = '18.11.-a';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
