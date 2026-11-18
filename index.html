@@ -227,7 +227,9 @@
   .trow { border-left: 4px solid var(--c, var(--line)); }
   .trow .rt { font-weight: 600; overflow-wrap: anywhere; }
   .trow .rs .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
-  .rlink { text-decoration: none; margin-right: 4px; }
+  .haslink, .rlink { text-decoration: underline dotted; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px; text-decoration-thickness: 1px; color: inherit; }
+  .d1 .haslink:hover { color: #fff; font-weight: 800; text-decoration-style: solid; text-decoration-color: #fff; }
+  .haslink:hover, .rlink:hover { color: #2f80ed; font-weight: 700; text-decoration-color: #2f80ed; }
   .rdel { border: 0; background: transparent; padding: 2px 6px; font-size: 15px; opacity: .45; align-self: center; flex: 0 0 auto; }
   .rdel:hover { opacity: 1; background: var(--surface-2); }
   .trow.kalrow .chk { border-color: var(--c); }
@@ -1021,11 +1023,10 @@ function nodeHtml(n, D) {
   const pr = progress(t, D);
   if (pr) chips.push(`<span class="chip">${pr.done}/${pr.all}</span>`);
   if (n.depth === 1 && t.parentId && D) chips.push(`<span class="chip">↳ ${esc(pathOf(t))}</span>`);
-  if (t.url) chips.push('<span class="chip" title="Doppelklick öffnet den Link">🔗</span>');
   if (t.notes) chips.push('<span class="chip" title="Notiz">📝</span>');
   const title = editing
     ? `<input class="nin" value="${esc(t.title)}" placeholder="${n.depth === 1 ? 'Neue Aufgabe …' : 'Teilaufgabe …'}" enterkeyhint="next" autocomplete="off" aria-label="Titel">`
-    : `<span class="title">${esc(t.title) || '<i class="muted">(ohne Titel)</i>'}</span>`;
+    : `<span class="title${t.url ? ' haslink' : ''}"${t.url ? ` title="Doppelklick öffnet ${esc(t.url)}"` : ''}>${esc(t.title) || '<i class="muted">(ohne Titel)</i>'}</span>`;
   const fold = n.nKids ? `<button class="fold${n.folded ? '' : ' open'}" data-fold="${t.id}" title="${n.folded ? 'Aufklappen' : 'Zuklappen'}" aria-label="${n.folded ? 'Aufklappen' : 'Zuklappen'}">${n.folded ? n.nKids : '−'}</button>` : '';
   return `<div class="${cls.join(' ')}" data-id="${t.id}" style="--c:${n.color}">
     ${n.stage ? `<span class="stage" title="Schritt ${n.stage}">${n.stage}</span>` : ''}
@@ -1829,10 +1830,10 @@ function rowHtml(t, D, extra = '', depth = 0, noPath = false) {
   const blk = blockers(t, D);
   if (blk.length && !done) sub.push('🔒 wartet auf ' + esc(blk.map(b => b.title).join(', ')));
   if (t.amount != null) sub.push(`<span class="amt">${esc(eur(t.amount))}</span>${c ? ' · ' + esc(c.name) : ''}`);
-  const top = [t.url ? `<a class="rlink" href="${esc(t.url)}" target="_blank" rel="noopener" title="Link öffnen">🔗</a>` : '', t.time ? esc(timeText(t)) : '', kc ? `<i class="dot" style="background:${esc(kc.color)}"></i>${esc(kc.name)}` : ''].filter(Boolean).join(' · ');
+  const top = [t.time ? esc(timeText(t)) : '', kc ? `<i class="dot" style="background:${esc(kc.color)}"></i>${esc(kc.name)}` : ''].filter(Boolean).join(' · ');
   return `<div class="trow${done ? ' done' : ''}" data-open="${t.id}" style="--c:${kc ? esc(kc.color) : 'var(--line)'}${depth ? `;padding-left:${12 + depth * 22}px` : ''}">
     <button class="chk" data-chk="${t.id}" data-d="${D || ''}" aria-label="erledigt">${done ? '✓' : ''}</button>
-    <div class="rm">${top ? `<div class="rs">${top}</div>` : ''}<div class="rt">${t.prio ? '★ ' : ''}${esc(t.title) || '<i class="muted">(ohne Titel)</i>'}</div>${sub.length ? `<div class="rs">${sub.join(' · ')}</div>` : ''}</div>
+    <div class="rm">${top ? `<div class="rs">${top}</div>` : ''}<div class="rt">${t.prio ? '★ ' : ''}${t.url ? `<a class="rlink" href="${esc(t.url)}" target="_blank" rel="noopener" title="${esc(t.url)}">${esc(t.title)}</a>` : (esc(t.title) || '<i class="muted">(ohne Titel)</i>')}</div>${sub.length ? `<div class="rs">${sub.join(' · ')}</div>` : ''}</div>
     <button class="rdel" data-del="${t.id}" title="Löschen" aria-label="Löschen">🗑</button></div>`;
 }
 function renderList() {
@@ -2299,7 +2300,7 @@ function openSearch(open) {
 }
 F('searchBtn').onclick = () => openSearch(F('search').classList.contains('hidden'));
 F('search').addEventListener('keydown', e => { if (e.key === 'Escape') openSearch(false); });
-const BUILD = '18.11.-a';
+const BUILD = '18.11.-b';
 function updateCalInfo() {
   let n = 0;
   try { n = MODE === 'server' ? Object.keys(calServer.events).filter(id => !id.startsWith('todo-')).length : calLocal.read().evs.filter(e => e && !String(e.id).startsWith('todo-')).length; } catch {}
